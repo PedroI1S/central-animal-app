@@ -28,13 +28,14 @@ const Dados = z.object({
 const EXTENSOES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
 
 export async function rotasPublicas(app: FastifyInstance) {
-  app.post('/api/triagem/interpretar', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+  // Limites por IP generosos: a plateia inteira no Wi-Fi do evento sai pelo mesmo IP público.
+  app.post('/api/triagem/interpretar', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (req) => {
     const { texto } = z.object({ texto: z.string().min(3).max(1000) }).parse(req.body)
     const sugestao = await interpretarRelato(texto)
     return { ok: sugestao !== null, sugestao }
   })
 
-  app.post('/api/ocorrencias', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (req, reply) => {
+  app.post('/api/ocorrencias', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req, reply) => {
     let dadosBrutos: unknown
     let foto: { buffer: Buffer; mime: string } | null = null
 

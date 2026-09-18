@@ -58,7 +58,7 @@ const PROMPT_EXTRACAO = `Você faz a pré-triagem de ocorrências com animais em
 caso:
 - "atropelamento": animal atingido por carro, moto ou qualquer veículo — mesmo que esteja ferido.
 - "envenenamento": suspeita de veneno ou isca.
-- "maus_tratos": alguém agride, prende sem água/comida ou maltrata.
+- "maus_tratos": uma PESSOA agride, prende sem água/comida ou maltrata o animal. Animal preso em telhado, árvore, bueiro ou buraco sem ninguém causando isso NÃO é maus-tratos — use "outro".
 - "abandono": animal sozinho na rua, largado ou perdido.
 - "morto_via": animal já morto na rua.
 - "ferido": outros ferimentos ou doenças.
