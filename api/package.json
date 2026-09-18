@@ -1,0 +1,30 @@
+{
+  "name": "api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file=../.env --import tsx src/server.ts",
+    "start": "NODE_ENV=production node --env-file=../.env --import tsx src/server.ts",
+    "db:push": "drizzle-kit push --force",
+    "db:seed": "tsx --env-file=../.env src/db/seed.ts",
+    "db:reset": "tsx --env-file=../.env src/db/seed.ts --reset",
+    "dev:watch": "node --watch-path=./src --env-file=../.env --import tsx src/server.ts"
+  },
+  "dependencies": {
+    "@ca/triagem": "^0.1.0",
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/multipart": "^10.1.1",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/static": "^10.1.4",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.12.5",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.5",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3"
+  }
+}

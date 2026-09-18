@@ -1,0 +1,5 @@
+export * from './tipos'
+export * from './arvore'
+export * from './regras'
+export * from './servicos'
+export * from './orientacoes'

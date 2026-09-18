@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: central-animal-db
+    environment:
+      POSTGRES_DB: central
+      POSTGRES_USER: central
+      POSTGRES_PASSWORD: central
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U central"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+volumes:
+  pgdata: {}

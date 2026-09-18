@@ -1,0 +1,28 @@
+{
+  "name": "central-animal",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "api",
+    "web"
+  ],
+  "scripts": {
+    "db": "docker compose up -d db",
+    "db:push": "npm -w api run db:push",
+    "db:seed": "npm -w api run db:seed",
+    "demo:reset": "npm -w api run db:reset",
+    "dev": "concurrently -n api,web -c blue,green \"npm -w api run dev\" \"npm -w web run dev\"",
+    "build": "npm -w web run build",
+    "start": "npm -w api run start",
+    "test": "npm -w @ca/triagem test",
+    "tunnel": "cloudflared tunnel --url http://localhost:3000"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.18.20": true
+  }
+}
