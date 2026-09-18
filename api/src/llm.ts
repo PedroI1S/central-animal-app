@@ -54,25 +54,53 @@ async function chat(body: object, timeoutMs: number): Promise<string> {
 
 // ---------- 1. Interpretar o relato livre (interativo, o cidadão está esperando) ----------
 
-const PROMPT_EXTRACAO = `Você faz a pré-triagem de ocorrências com animais em Pato Branco (PR). Leia o relato do cidadão e preencha os campos. Regras:
-- tipo_animal: "silvestre" para cobra, ave silvestre, gambá, capivara, macaco etc.; "domestico" para cão, gato, cavalo, boi; "nao_sei" se não der para saber.
-- situacao (só para doméstico): "atropelamento" se o animal foi atingido por carro, moto ou qualquer veículo — mesmo que esteja ferido; "envenenamento" se há suspeita de veneno ou isca; "maus_tratos" se alguém agride, prende sem água/comida ou maltrata; "abandono" se está sozinho na rua, largado ou perdido; "morto_via" se já está morto na rua; "ferido" para outros ferimentos ou doenças; "outro" se nada se aplica.
-- situacao_silvestre (só para silvestre): "ameaca" se está dentro de casa ou perto de pessoas; "ferido" se machucado; "avistado" caso contrário.
-- sinais: marque SOMENTE sinais citados explicitamente. "nao_levanta" = não consegue levantar ou andar. "convulsao" = convulsão ou tremores. "vomito" = vômito, baba ou saliva excessiva. "inconsciente" só se o relato disser desmaiado, desacordado ou que não reage. Na dúvida, não marque.
-- maus_tratos_agora, abandono_filhotes, outros_animais: "sim" ou "nao" apenas se o relato disser; senão "nao_informado".`
+const PROMPT_EXTRACAO = `Você faz a pré-triagem de ocorrências com animais em Pato Branco (PR). Leia o relato e responda com JSON curto.
+caso:
+- "atropelamento": animal atingido por carro, moto ou qualquer veículo — mesmo que esteja ferido.
+- "envenenamento": suspeita de veneno ou isca.
+- "maus_tratos": alguém agride, prende sem água/comida ou maltrata.
+- "abandono": animal sozinho na rua, largado ou perdido.
+- "morto_via": animal já morto na rua.
+- "ferido": outros ferimentos ou doenças.
+- "silvestre_perto_de_pessoas" / "silvestre_ferido" / "silvestre_avistado": cobra, ave silvestre, gambá, capivara, macaco etc.
+- "outro": nada se aplica.
+sinais: SOMENTE sinais citados explicitamente. nao_levanta = não consegue levantar/andar; convulsao = convulsão ou tremores; vomito = vômito, baba ou saliva excessiva; inconsciente só se disser desmaiado/desacordado/não reage. Se nenhum sinal for citado, use []. Responda em uma única linha.`
 
 const SCHEMA_EXTRACAO = {
   type: 'object',
   properties: {
-    tipo_animal: { enum: ['domestico', 'silvestre', 'nao_sei'] },
-    situacao: { enum: ['atropelamento', 'ferido', 'envenenamento', 'maus_tratos', 'abandono', 'morto_via', 'outro', 'nao_se_aplica'] },
-    situacao_silvestre: { enum: ['ameaca', 'ferido', 'avistado', 'nao_se_aplica'] },
+    caso: {
+      enum: [
+        'atropelamento', 'ferido', 'envenenamento', 'maus_tratos', 'abandono', 'morto_via', 'outro',
+        'silvestre_perto_de_pessoas', 'silvestre_ferido', 'silvestre_avistado',
+      ],
+    },
     sinais: { type: 'array', items: { enum: ['sangramento', 'respiracao', 'inconsciente', 'convulsao', 'nao_levanta', 'vomito'] } },
-    maus_tratos_agora: { enum: ['sim', 'nao', 'nao_informado'] },
-    abandono_filhotes: { enum: ['sim', 'nao', 'nao_informado'] },
-    outros_animais: { enum: ['sim', 'nao', 'nao_informado'] },
   },
-  required: ['tipo_animal', 'situacao', 'situacao_silvestre', 'sinais', 'maus_tratos_agora', 'abandono_filhotes', 'outros_animais'],
+  required: ['caso', 'sinais'],
+}
+
+// Perguntas de um toque (flagrante, filhotes, outros animais) ficam sempre com o cidadão: errar ali custa caro.
+type Extracao = { caso: string; sinais: string[] }
+
+const SILVESTRE: Record<string, string> = {
+  silvestre_perto_de_pessoas: 'ameaca',
+  silvestre_ferido: 'ferido',
+  silvestre_avistado: 'avistado',
+}
+
+/** Traduz a saída enxuta do modelo para as respostas da árvore. O que não vier fica sem resposta — e o chat pergunta. */
+function paraRespostas(e: Extracao): Respostas {
+  const r: Respostas = {}
+  if (SILVESTRE[e.caso]) {
+    r.tipo_animal = 'silvestre'
+    r.situacao_silvestre = SILVESTRE[e.caso]
+  } else {
+    r.tipo_animal = 'domestico'
+    r.situacao = e.caso
+  }
+  if (e.sinais?.length) r.sinais = [...new Set(e.sinais)]
+  return r
 }
 
 const LIMITE_FILA = 2
@@ -86,7 +114,7 @@ export async function interpretarRelato(relato: string): Promise<Respostas | nul
         chat(
           {
             format: SCHEMA_EXTRACAO,
-            options: { ...OPCOES, num_predict: 120 },
+            options: { ...OPCOES, num_predict: 60 },
             messages: [
               { role: 'system', content: PROMPT_EXTRACAO },
               { role: 'user', content: relato.slice(0, 1000) },
@@ -96,15 +124,7 @@ export async function interpretarRelato(relato: string): Promise<Respostas | nul
         ),
       true,
     )
-    const extraido = JSON.parse(bruto) as Record<string, string | string[]>
-    // Descarta campos vazios ou não aplicáveis; o fluxo adaptativo pergunta o que faltar.
-    const sugestao: Respostas = {}
-    for (const [k, v] of Object.entries(extraido)) {
-      if (v === 'nao_se_aplica' || v === 'nao_informado') continue
-      sugestao[k] = v
-    }
-    if (Array.isArray(sugestao.sinais) && sugestao.sinais.length === 0) sugestao.sinais = ['nenhum']
-    return sugestao
+    return paraRespostas(JSON.parse(bruto) as Extracao)
   } catch {
     return null
   }
