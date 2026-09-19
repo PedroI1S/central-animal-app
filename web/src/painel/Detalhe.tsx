@@ -2,8 +2,9 @@ import { PRIORIDADES, type Prioridade } from '@ca/triagem'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import L from 'leaflet'
 import { useState, type ReactNode } from 'react'
-import { MapContainer, Marker, TileLayer } from 'react-leaflet'
+import { AttributionControl, MapContainer, Marker, TileLayer } from 'react-leaflet'
 import { api, enviarJson } from '../api'
+import { ATRIBUICAO_OSM } from '../cidadao/MapaPino'
 import type { OcorrenciaDetalhe, Servidor } from '../tipos'
 import { BotaoLigar, Carregando, Cartao, horario, rotuloCategoria, rotuloResposta, SeloPrioridade, SeloStatus, STATUS, tempoRelativo } from '../ui'
 
@@ -20,6 +21,14 @@ const ROTULO_PERGUNTA: Record<string, string> = {
   outros_animais: 'Outros animais afetados',
 }
 
+// Caminho que as regras escolheram (packages/triagem/src/regras.ts): o operador vê a rota, não só a lista de serviços.
+const ROTA: Record<string, string> = {
+  humana: 'Rota humana',
+  fauna: 'Rota de fauna silvestre',
+  policial: 'Rota policial',
+  municipal: 'Rota municipal',
+}
+
 export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; demo: boolean; onFechar: () => void; onAbrir: (id: string) => void }) {
   const qc = useQueryClient()
   const { data: o, isLoading } = useQuery({
@@ -28,6 +37,8 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
     refetchInterval: 3000,
   })
   const servidores = useQuery({ queryKey: ['servidores'], queryFn: () => api<Servidor[]>('/api/painel/servidores') })
+  // Confirma na hora o que foi registrado. Antes, o único sinal era uma linha nova no fim da linha do tempo, fora da tela.
+  const [registrado, setRegistrado] = useState<{ visivel: boolean } | null>(null)
 
   const acao = useMutation({
     mutationFn: (corpo: object) => enviarJson(`/api/painel/ocorrencias/${id}`, corpo, 'PATCH'),
@@ -35,7 +46,11 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
   })
   const providencia = useMutation({
     mutationFn: (corpo: { texto: string; visivelCidadao: boolean }) => enviarJson(`/api/painel/ocorrencias/${id}/eventos`, corpo),
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: (_, corpo) => {
+      qc.invalidateQueries()
+      setRegistrado({ visivel: corpo.visivelCidadao })
+      setTimeout(() => setRegistrado(null), 6000)
+    },
   })
 
   if (isLoading || !o) return <Carregando />
@@ -46,11 +61,17 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
         (k) => o.sugestaoIa![k] !== undefined && JSON.stringify(o.sugestaoIa![k]) !== JSON.stringify(o.respostas[k]),
       )
     : []
+  const contato = o.anonimo ? 'Relato anônimo' : demo ? 'Contato informado (oculto no modo demo)' : `${o.contatoNome} · ${o.contatoTel}`
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-4 p-4 @3xl:p-6">
+      {/* No celular o caso ocupa a tela inteira: volta para a fila em vez do × */}
+      <button onClick={onFechar} className="-my-1 py-1 text-sm font-semibold text-marca-700 lg:hidden">
+        ‹ Voltar à fila
+      </button>
+
       <div className="flex items-start gap-4">
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <SeloPrioridade p={o.prioridade} grande />
             <SeloStatus status={o.status} />
@@ -60,11 +81,21 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
           <p className="text-sm text-slate-500">
             Registrada {tempoRelativo(o.criadoEm)} ({horario(o.criadoEm)}) · {o.responsavel ? `Responsável: ${o.responsavel}` : 'Sem responsável'}
           </p>
+          <p className="text-sm text-slate-500">
+            {ROTA[o.rota] ?? o.rota} · {contato}
+          </p>
         </div>
-        <button onClick={onFechar} aria-label="Fechar" className="rounded-lg px-3 py-1 text-2xl text-slate-500 hover:bg-slate-100">
+        <button onClick={onFechar} aria-label="Fechar" className="hidden rounded-lg px-3 py-1 text-2xl text-slate-500 hover:bg-slate-100 lg:block">
           ×
         </button>
       </div>
+
+      {o.rota === 'humana' && (
+        <div className="rounded-xl bg-p1 px-4 py-3 text-white">
+          <p className="font-bold">Pessoa em risco</p>
+          <p className="text-sm">Confirme se o SAMU (192) ou os Bombeiros (193) já foram acionados. O cidadão foi orientado a ligar.</p>
+        </div>
+      )}
 
       <div className="rounded-xl border-l-4 bg-white p-4 shadow-sm" style={{ borderColor: PRIORIDADES[o.prioridade].cor }}>
         <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">Por que esta prioridade</p>
@@ -88,7 +119,10 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
           <ul className="mt-2 space-y-1">
             {o.relacionadas.map((r) => (
               <li key={r.id}>
-                <button onClick={() => onAbrir(r.id)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-sm hover:bg-amber-100">
+                <button
+                  onClick={() => onAbrir(r.id)}
+                  className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2 py-1 text-left text-sm hover:bg-amber-100"
+                >
                   <SeloPrioridade p={r.prioridade} />
                   <span className="font-mono text-xs">{r.protocolo}</span>
                   <span>{rotuloCategoria(r.categoria)}</span>
@@ -103,7 +137,27 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      {/* Ações logo abaixo do "porquê": atribuir e registrar sem rolar a página na frente da plateia. */}
+      {aberta && (
+        <Acoes
+          o={o}
+          servidores={servidores.data ?? []}
+          ocupado={acao.isPending || providencia.isPending}
+          erro={(acao.error ?? providencia.error)?.message}
+          registrado={registrado}
+          onAcao={(c) => acao.mutate(c)}
+          onProvidencia={(texto, visivelCidadao) => providencia.mutate({ texto, visivelCidadao })}
+        />
+      )}
+
+      {o.desfecho && (
+        <Cartao titulo="Desfecho">
+          <p>{o.desfecho}</p>
+        </Cartao>
+      )}
+
+      {/* Duas colunas quando o painel tem espaço (não a janela); cartão ímpar no fim ocupa a linha inteira. */}
+      <div className="grid grid-cols-1 gap-4 @2xl:grid-cols-2 @2xl:[&>:last-child:nth-child(odd)]:col-span-2">
         <Cartao titulo="✨ Análise da IA (Qwen local)">
           {o.iaStatus === 'pendente' && (
             <p className="flex items-center gap-2 text-sm text-marca-700">
@@ -135,7 +189,7 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
             {Object.entries(o.respostas).map(([k, v]) => (
               <div key={k} className="flex gap-2">
                 <dt className="w-36 shrink-0 text-slate-500">{ROTULO_PERGUNTA[k] ?? k}</dt>
-                <dd className="font-medium">{rotuloResposta(k, v)}</dd>
+                <dd className="min-w-0 font-medium">{rotuloResposta(k, v)}</dd>
               </div>
             ))}
           </dl>
@@ -152,7 +206,8 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
         <Cartao titulo="Local">
           {o.lat != null && o.lng != null && (
             <MapContainer center={[o.lat, o.lng]} zoom={16} className="h-40 w-full rounded-lg" attributionControl={false} scrollWheelZoom={false}>
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution={ATRIBUICAO_OSM} />
+              <AttributionControl prefix={false} />
               <Marker position={[o.lat, o.lng]} icon={pino} />
             </MapContainer>
           )}
@@ -170,9 +225,9 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
         {o.fotos.length > 0 && (
           <Cartao titulo="Fotos">
             <Revelar demo={demo} rotulo={o.fotos.length === 1 ? 'Mostrar foto (oculta no modo demo)' : 'Mostrar fotos (ocultas no modo demo)'}>
-              <div className="flex gap-2">
+              <div className="flex gap-2 overflow-x-auto">
                 {o.fotos.map((f) => (
-                  <a key={f} href={f} target="_blank" rel="noreferrer">
+                  <a key={f} href={f} target="_blank" rel="noreferrer" className="shrink-0">
                     <img src={f} alt="Foto da ocorrência" className="h-40 rounded-lg object-cover" />
                   </a>
                 ))}
@@ -180,25 +235,13 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
             </Revelar>
           </Cartao>
         )}
-
-        <Cartao titulo="Contato">
-          {o.anonimo ? (
-            <p className="text-sm text-slate-500">Relato anônimo</p>
-          ) : demo ? (
-            <p className="text-sm text-slate-500">Contato informado (oculto no modo demo)</p>
-          ) : (
-            <p className="text-sm">
-              {o.contatoNome} · {o.contatoTel}
-            </p>
-          )}
-        </Cartao>
       </div>
 
       <Cartao titulo="Encaminhamento">
         <ul className="divide-y divide-slate-100">
           {o.servicos.map((s) => (
-            <li key={s.id} className="flex items-center justify-between py-2">
-              <div>
+            <li key={s.id} className="flex items-center justify-between gap-3 py-2">
+              <div className="min-w-0">
                 <p className="font-medium">{s.nome}</p>
                 <p className="text-xs text-slate-500">{s.orgao}</p>
               </div>
@@ -207,23 +250,6 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
           ))}
         </ul>
       </Cartao>
-
-      {aberta && (
-        <Acoes
-          o={o}
-          servidores={servidores.data ?? []}
-          ocupado={acao.isPending || providencia.isPending}
-          erro={(acao.error ?? providencia.error)?.message}
-          onAcao={(c) => acao.mutate(c)}
-          onProvidencia={(texto, visivelCidadao) => providencia.mutate({ texto, visivelCidadao })}
-        />
-      )}
-
-      {o.desfecho && (
-        <Cartao titulo="Desfecho">
-          <p>{o.desfecho}</p>
-        </Cartao>
-      )}
 
       <Cartao titulo="Linha do tempo">
         <ol className="space-y-3 border-l-2 border-slate-200 pl-4">
@@ -247,6 +273,7 @@ function Acoes(props: {
   servidores: Servidor[]
   ocupado: boolean
   erro?: string
+  registrado: { visivel: boolean } | null
   onAcao: (corpo: object) => void
   onProvidencia: (texto: string, visivel: boolean) => void
 }) {
@@ -259,67 +286,81 @@ function Acoes(props: {
   const [desfecho, setDesfecho] = useState('')
   const [improcedente, setImprocedente] = useState(false)
 
+  const registrar = () => {
+    props.onProvidencia(texto.trim(), visivel)
+    setTexto('')
+  }
+
   return (
     <Cartao titulo="Ações" className="border-marca-200 ring-1 ring-marca-100">
       <div className="space-y-4">
-        <Linha rotulo="Responsável">
-          <select
-            value={o.responsavelId ?? ''}
-            disabled={props.ocupado}
-            onChange={(e) => e.target.value && props.onAcao({ acao: 'atribuir', responsavelId: e.target.value })}
-            className="rounded-lg border border-slate-300 px-3 py-2"
-          >
-            <option value="">Atribuir a…</option>
-            {props.servidores.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nome} — {s.setor}
-              </option>
-            ))}
-          </select>
-          {(['em_atendimento', 'encaminhada'] as const).map((s) => (
-            <button
-              key={s}
-              disabled={props.ocupado || o.status === s}
-              onClick={() => props.onAcao({ acao: 'status', status: s })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-40"
+        {/* grid-cols-1 explícito: sem ele a coluna cresce até o nome mais longo do select e vaza do cartão no celular. */}
+        <div className="grid grid-cols-1 gap-4 @xl:grid-cols-2">
+          <Linha rotulo="Responsável">
+            <select
+              value={o.responsavelId ?? ''}
+              disabled={props.ocupado}
+              onChange={(e) => e.target.value && props.onAcao({ acao: 'atribuir', responsavelId: e.target.value })}
+              className="max-w-full rounded-lg border border-slate-300 px-3 py-2"
             >
-              {STATUS[s].rotulo}
-            </button>
-          ))}
-        </Linha>
+              <option value="">Atribuir a…</option>
+              {props.servidores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome} — {s.setor}
+                </option>
+              ))}
+            </select>
+          </Linha>
+          <Linha rotulo="Status">
+            {(['em_atendimento', 'encaminhada'] as const).map((s) => (
+              <button
+                key={s}
+                disabled={props.ocupado || o.status === s}
+                onClick={() => props.onAcao({ acao: 'status', status: s })}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-40"
+              >
+                {STATUS[s].rotulo}
+              </button>
+            ))}
+          </Linha>
+        </div>
 
         <div>
-          <p className="mb-1 text-sm font-medium">Registrar providência</p>
+          <label htmlFor="providencia" className="mb-1 block text-sm font-medium">
+            Registrar providência
+          </label>
           <div className="flex gap-2">
             <input
+              id="providencia"
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
               placeholder="Ex.: Equipe a caminho. Plantão veterinário avisado."
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2"
+              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2"
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && texto.trim().length > 1) {
-                  props.onProvidencia(texto.trim(), visivel)
-                  setTexto('')
-                }
+                if (e.key === 'Enter' && texto.trim().length > 1) registrar()
               }}
             />
             <button
               disabled={props.ocupado || texto.trim().length < 2}
-              onClick={() => {
-                props.onProvidencia(texto.trim(), visivel)
-                setTexto('')
-              }}
+              onClick={registrar}
               className="rounded-lg bg-marca-600 px-4 py-2 font-semibold text-white disabled:opacity-40"
             >
               Registrar
             </button>
           </div>
-          <label className="mt-1 flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={visivel} onChange={(e) => setVisivel(e.target.checked)} /> Visível para o cidadão
-          </label>
+          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input type="checkbox" checked={visivel} onChange={(e) => setVisivel(e.target.checked)} /> Visível para o cidadão
+            </label>
+            {props.registrado && (
+              <span role="status" className="animar-entrada text-sm font-semibold text-marca-700">
+                {props.registrado.visivel ? '✓ Registrado · aparece no celular do cidadão em até 5 s' : '✓ Registrado como nota interna'}
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button onClick={() => setModo(modo === 'reclassificar' ? 'nenhum' : 'reclassificar')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             Reclassificar prioridade
           </button>
@@ -341,7 +382,7 @@ function Acoes(props: {
               value={justificativa}
               onChange={(e) => setJustificativa(e.target.value)}
               placeholder="Justificativa (obrigatória)"
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2"
+              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2"
             />
             <button
               disabled={props.ocupado || justificativa.trim().length < 3 || novaP === o.prioridade}
@@ -366,7 +407,7 @@ function Acoes(props: {
               placeholder="Desfecho (obrigatório) — ex.: Animal atendido e encaminhado para adoção."
               className="w-full rounded-lg border border-slate-300 px-3 py-2"
             />
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={improcedente} onChange={(e) => setImprocedente(e.target.checked)} /> Improcedente / trote
               </label>

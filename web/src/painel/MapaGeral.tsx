@@ -1,12 +1,13 @@
 import { CATEGORIAS, PRIORIDADES } from '@ca/triagem'
-import { CircleMarker, MapContainer, TileLayer, Tooltip } from 'react-leaflet'
-import { PATO_BRANCO } from '../cidadao/MapaPino'
+import { AttributionControl, CircleMarker, MapContainer, TileLayer, Tooltip } from 'react-leaflet'
+import { ATRIBUICAO_OSM, PATO_BRANCO } from '../cidadao/MapaPino'
 import type { ItemFila } from '../tipos'
 
 export default function MapaGeral({ itens, demo, onSelecionar }: { itens: ItemFila[]; demo: boolean; onSelecionar: (id: string) => void }) {
   return (
-    <MapContainer center={PATO_BRANCO} zoom={14} className="h-full w-full">
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
+    <MapContainer center={PATO_BRANCO} zoom={14} className="h-full w-full" attributionControl={false}>
+      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution={ATRIBUICAO_OSM} />
+      <AttributionControl prefix={false} />
       {itens
         .filter((o) => o.lat != null && o.lng != null)
         .map((o) => (
