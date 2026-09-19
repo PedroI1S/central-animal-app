@@ -62,7 +62,8 @@ caso:
 - "abandono": animal sozinho na rua, largado ou perdido.
 - "morto_via": animal já morto na rua.
 - "ferido": outros ferimentos ou doenças.
-- "silvestre_perto_de_pessoas" / "silvestre_ferido" / "silvestre_avistado": cobra, ave silvestre, gambá, capivara, macaco etc.
+- "silvestre_perto_de_pessoas" / "silvestre_ferido" / "silvestre_avistado": cobra, ave silvestre, gambá, capivara, macaco, tatu, lagarto etc. — MESMO que a pessoa diga "meu" ou "minha". Animal silvestre atropelado, machucado ou doente = "silvestre_ferido".
+Se o animal for silvestre, use SEMPRE um caso silvestre_*, nunca atropelamento/ferido/envenenamento.
 - "outro": nada se aplica.
 sinais: SOMENTE sinais citados explicitamente. nao_levanta = não consegue levantar/andar; convulsao = convulsão ou tremores; vomito = vômito, baba ou saliva excessiva; inconsciente só se disser desmaiado/desacordado/não reage. Se nenhum sinal for citado, use []. Responda em uma única linha.`
 

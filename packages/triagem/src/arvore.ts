@@ -47,7 +47,7 @@ export const PERGUNTAS: Record<string, Pergunta> = {
     tipo: 'unica',
     opcoes: [
       { valor: 'ameaca', rotulo: 'Dentro de casa ou perto de pessoas', emoji: '🏠' },
-      { valor: 'ferido', rotulo: 'Está ferido', emoji: '🩹' },
+      { valor: 'ferido', rotulo: 'Ferido ou atropelado', emoji: '🩹' },
       { valor: 'avistado', rotulo: 'Só avistei, sem risco', emoji: '👀' },
     ],
   },
@@ -94,7 +94,7 @@ const FLUXO: { id: string; quando: (r: Respostas) => boolean }[] = [
   { id: 'tipo_animal', quando: () => true },
   { id: 'situacao', quando: (r) => r.tipo_animal !== 'silvestre' },
   { id: 'situacao_silvestre', quando: (r) => r.tipo_animal === 'silvestre' },
-  { id: 'sinais', quando: (r) => COM_SINAIS.includes(r.situacao as string) },
+  { id: 'sinais', quando: (r) => COM_SINAIS.includes(r.situacao as string) || r.situacao_silvestre === 'ferido' },
   { id: 'maus_tratos_agora', quando: (r) => r.situacao === 'maus_tratos' },
   { id: 'abandono_filhotes', quando: (r) => r.situacao === 'abandono' },
   { id: 'outros_animais', quando: (r) => r.situacao === 'envenenamento' },

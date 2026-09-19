@@ -29,6 +29,8 @@ npm run start
 npm run tunnel            # cloudflared → URL https pública e aleatória
 ```
 
+**Espere aparecer `Registered tunnel connection`** no terminal antes de abrir o endereço em qualquer aparelho: se o DNS da rede consultar o nome cedo demais, ele guarda um "não existe" em cache por alguns minutos (aconteceu no teste em casa; no 4G funciona).
+
 Abra o painel **pela URL do túnel** (`https://…trycloudflare.com/painel?modo=demo`): o QR Code usa o endereço da própria página. Para um endereço fixo (QR impresso no slide), use ngrok com domínio estático ou defina `VITE_PUBLIC_URL` antes do build.
 
 ## Arquitetura

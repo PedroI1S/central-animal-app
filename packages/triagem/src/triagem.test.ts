@@ -39,6 +39,14 @@ describe('jornadas', () => {
 })
 
 describe('regras de segurança', () => {
+  it('silvestre atropelado com convulsão → P1 na rota de fauna (caso da capivara)', () => {
+    expect(proximaPergunta({ pessoa_risco: 'nao', tipo_animal: 'silvestre', situacao_silvestre: 'ferido' })?.id).toBe('sinais')
+    const r = classificar({ pessoa_risco: 'nao', tipo_animal: 'silvestre', situacao_silvestre: 'ferido', sinais: ['convulsao'] })
+    expect(r.prioridade).toBe(1)
+    expect(r.rota).toBe('fauna')
+    expect(r.servicos.map((s) => s.id)).toContain('fauna')
+  })
+
   it('sinal vital sempre eleva a P1, mesmo em categoria de baixa prioridade', () => {
     expect(classificar({ pessoa_risco: 'nao', tipo_animal: 'domestico', situacao: 'ferido', sinais: ['convulsao'] }).prioridade).toBe(1)
   })
