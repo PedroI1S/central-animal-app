@@ -86,7 +86,8 @@ export const PERGUNTAS: Record<string, Pergunta> = {
   },
 }
 
-const COM_SINAIS = ['atropelamento', 'ferido', 'envenenamento']
+// Maus-tratos e "outro" também perguntam sinais: um animal agredido pode estar sangrando.
+const COM_SINAIS = ['atropelamento', 'ferido', 'envenenamento', 'maus_tratos', 'outro']
 
 /** Ordem das perguntas + condição de relevância. */
 const FLUXO: { id: string; quando: (r: Respostas) => boolean }[] = [
