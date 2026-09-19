@@ -24,7 +24,12 @@ app.setErrorHandler((err: FastifyError, req, reply) => {
   return reply.code(err.statusCode ?? 500).send({ erro: err.statusCode ? err.message : 'Erro interno' })
 })
 
-app.get('/api/health', async () => ({ ok: true }))
+// CORS só aqui: a página do link fixo (GitHub Pages) precisa LER esta resposta para distinguir
+// a nossa API de um túnel morto (que também responde, com o erro 530 da Cloudflare).
+app.get('/api/health', async (_req, reply) => {
+  reply.header('access-control-allow-origin', '*')
+  return { ok: true }
+})
 await app.register(rotasPublicas)
 await app.register(rotasPainel)
 

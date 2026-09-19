@@ -15,7 +15,8 @@
     "build": "npm -w web run build",
     "start": "npm -w api run start",
     "test": "npm -w @ca/triagem test",
-    "tunnel": "cloudflared tunnel --url http://localhost:3000"
+    "tunnel": "cloudflared tunnel --url http://localhost:3000",
+    "tunnel:publicar": "node scripts/tunel.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.0"

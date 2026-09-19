@@ -21,17 +21,22 @@ Desenvolvimento com hot reload do front: `npm -w api run dev` + `npm -w web run 
 - Cidadão: `/` · Painel: `/painel` (login de teste: `ana@central.pb` / `central123`)
 - Modo apresentação: `/painel?modo=demo` — esconde texto livre, mostra QR Code, bip a cada caso novo
 
-## Demo com a plateia (QR Code)
+## Demo com a plateia — link fixo
+
+**Link fixo (vai no QR e no material):** https://pedroi1s.github.io/central-animal/ · QR em `pages/qr-central-animal.svg`
 
 ```bash
 npm run demo:reset        # banco limpo antes de subir no palco
-npm run start
-npm run tunnel            # cloudflared → URL https pública e aleatória
+npm run start             # terminal 1
+npm run tunnel:publicar   # terminal 2 — deixe aberto
 ```
 
-**Espere aparecer `Registered tunnel connection`** no terminal antes de abrir o endereço em qualquer aparelho: se o DNS da rede consultar o nome cedo demais, ele guarda um "não existe" em cache por alguns minutos (aconteceu no teste em casa; no 4G funciona).
+O `tunnel:publicar` sobe um túnel da Cloudflare, confere que ele responde pela internet (via DNS público, imune ao cache da rede) e aponta o link fixo para ele (`destino.json` no repositório privado `PedroI1S/central-animal`, publicado pelo GitHub Pages). Leva ~1 min.
 
-Abra o painel **pela URL do túnel** (`https://…trycloudflare.com/painel?modo=demo`): o QR Code usa o endereço da própria página. Para um endereço fixo (QR impresso no slide), use ngrok com domínio estático ou defina `VITE_PUBLIC_URL` antes do build.
+- **Ctrl+C** derruba o túnel e marca o link como desligado.
+- **Túnel caiu?** Rode `npm run tunnel:publicar` de novo — túnel novo, mesmo link.
+- **Notebook desligado / túnel morto:** o link mostra "O protótipo está desligado no momento" em vez de erro.
+- Caminhos são preservados: `…/central-animal/painel?modo=demo` abre o painel no túnel.
 
 ## Arquitetura
 
