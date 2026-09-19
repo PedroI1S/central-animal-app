@@ -1,7 +1,7 @@
 import { CATEGORIAS, PRIORIDADES, SERVICOS, type Prioridade } from '@ca/triagem'
 import { eq, sql } from 'drizzle-orm'
 import { db, schema } from './db/index.ts'
-import { analisarFoto, gerarResumo } from './llm.ts'
+import { analisarFoto, gerarResumo, textoSeguro } from './llm.ts'
 
 const { ocorrencias, eventos } = schema
 
@@ -54,14 +54,17 @@ export function enriquecerComIa(id: string, relato: string | null, categoria: st
     const contexto = `${CATEGORIAS[categoria as keyof typeof CATEGORIAS] ?? categoria} — ${motivos.join(', ')}`
     if (relato) {
       try {
-        await db.update(ocorrencias).set({ resumoIa: await gerarResumo(relato, contexto) }).where(eq(ocorrencias.id, id))
+        // Se a IA trouxer algo impróprio, o resumo vira o da própria classificação (regras, sem IA).
+        const resumo = textoSeguro(await gerarResumo(relato, contexto)) ?? `${motivos.join(', ')}.`
+        await db.update(ocorrencias).set({ resumoIa: resumo }).where(eq(ocorrencias.id, id))
       } catch {
         erro = true
       }
     }
     if (foto) {
       try {
-        await db.update(ocorrencias).set({ analiseFotoIa: await analisarFoto(foto) }).where(eq(ocorrencias.id, id))
+        const analise = textoSeguro(await analisarFoto(foto)) ?? 'Foto recebida; descrição automática omitida.'
+        await db.update(ocorrencias).set({ analiseFotoIa: analise }).where(eq(ocorrencias.id, id))
       } catch {
         erro = true
       }
