@@ -4,7 +4,8 @@
   --color-marca-50: #f0fdfa;
   --color-marca-100: #ccfbf1;
   --color-marca-500: #14b8a6;
-  --color-marca-600: #0d9488;
+  /* Um tom abaixo do teal-600 (#0d9488, 3,7:1): texto branco nos botões e bolhas passa de 4,5:1. */
+  --color-marca-600: #0a7f74;
   --color-marca-700: #0f766e;
   --color-marca-900: #134e4a;
   --color-p1: #dc2626;
@@ -53,4 +54,9 @@ body {
 
 .leaflet-container {
   font: inherit;
+}
+
+/* Mapa base em cinza: o verde dos parques competia com o P4. Cor no mapa só para prioridade e pino. */
+.leaflet-tile-pane {
+  filter: grayscale(1) contrast(0.9) brightness(1.05);
 }

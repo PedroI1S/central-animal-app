@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { ACESSO_LOCAL, Pata } from '../ui'
 import { lerProtocolos } from './meusProtocolos'
 
 export default function Inicio() {
@@ -6,7 +7,7 @@ export default function Inicio() {
   return (
     <main className="mx-auto flex min-h-full max-w-md flex-col bg-white">
       <header className="bg-gradient-to-br from-marca-700 to-marca-900 px-6 pt-12 pb-10 text-white">
-        <div className="text-5xl">🐾</div>
+        <Pata className="size-12" />
         <h1 className="mt-4 text-3xl font-bold">Central Animal</h1>
         <p className="mt-1 text-marca-100">Prefeitura de Pato Branco</p>
         <p className="mt-6 text-lg leading-snug">
@@ -47,12 +48,17 @@ export default function Inicio() {
         </ul>
       </div>
 
-      <footer className="border-t border-slate-100 px-6 py-4 text-center text-xs text-slate-400">
+      <footer className="border-t border-slate-100 px-6 py-4 text-center text-xs text-slate-500">
         Pessoa em risco? Ligue <b>192</b> (SAMU) ou <b>193</b> (Bombeiros).
-        <br />
-        <Link to="/painel" className="underline">
-          Área do servidor
-        </Link>
+        {/* Pelo túnel a plateia inteira vê esta página: o atalho do painel só aparece no notebook. */}
+        {ACESSO_LOCAL && (
+          <>
+            <br />
+            <Link to="/painel" className="underline">
+              Área do servidor
+            </Link>
+          </>
+        )}
       </footer>
     </main>
   )

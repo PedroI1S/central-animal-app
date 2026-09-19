@@ -2,7 +2,7 @@ import { PERGUNTAS, podarRespostas, proximaPergunta, type Pergunta, type Respost
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, enviarJson } from '../api'
-import { rotuloResposta } from '../ui'
+import { Pata, rotuloResposta } from '../ui'
 import MapaPino from './MapaPino'
 import { salvarProtocolo } from './meusProtocolos'
 import { reduzirFoto } from './reduzirFoto'
@@ -162,7 +162,9 @@ export default function Relatar() {
         <Link to="/" className="text-2xl leading-none" aria-label="Voltar">
           ‹
         </Link>
-        <div className="grid size-9 place-items-center rounded-full bg-white/15 text-xl">🐾</div>
+        <div className="grid size-9 place-items-center rounded-full bg-white/15">
+          <Pata className="size-5" />
+        </div>
         <div className="flex-1">
           <div className="font-semibold">Central Animal</div>
           <div className="text-xs text-marca-100">{etapa === 'interpretando' ? 'analisando seu relato…' : 'online'}</div>
@@ -422,7 +424,7 @@ function EtapaContato({ enviando, erro, onEnviar }: { enviando: boolean; erro: s
       <button disabled={enviando} onClick={() => onEnviar(true)} className="w-full rounded-xl border border-slate-300 py-3 font-medium disabled:opacity-40">
         {enviando ? 'Enviando…' : 'Enviar anonimamente'}
       </button>
-      <p className="text-center text-[11px] text-slate-400">Seus dados são usados só para o atendimento e nunca são mostrados à pessoa denunciada.</p>
+      <p className="text-center text-[11px] text-slate-500">Seus dados são usados só para o atendimento e nunca são mostrados à pessoa denunciada.</p>
     </div>
   )
 }

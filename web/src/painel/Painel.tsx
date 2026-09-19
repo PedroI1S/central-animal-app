@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { api, enviarJson, ErroApi } from '../api'
 import type { ItemFila, Servidor, Stats } from '../tipos'
-import { Carregando, rotuloCategoria, SeloPrioridade, SeloStatus, corPrioridade, tempoRelativo, useAgora } from '../ui'
+import { Carregando, Pata, rotuloCategoria, SeloPrioridade, SeloStatus, corPrioridade, tempoRelativo, useAgora } from '../ui'
 import Detalhe from './Detalhe'
 import Login from './Login'
 import MapaGeral from './MapaGeral'
@@ -90,7 +90,7 @@ function Area({ eu }: { eu: Servidor }) {
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-4 bg-slate-900 px-5 py-3 text-white">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">🐾</span>
+          <Pata className="size-7 text-marca-500" />
           <div>
             <div className="font-bold leading-tight">Central Animal</div>
             <div className="text-xs text-slate-400">Painel do servidor</div>
@@ -99,9 +99,9 @@ function Area({ eu }: { eu: Servidor }) {
 
         <div className="ml-4 flex gap-2">
           <Indicador valor={stats.data?.criticasAbertas} rotulo="críticas abertas" cor="bg-p1" />
-          <Indicador valor={stats.data?.semResponsavel} rotulo="sem responsável" cor="bg-amber-600" />
-          <Indicador valor={stats.data?.hoje} rotulo="hoje" cor="bg-slate-700" />
-          <Indicador valor={stats.data?.encerradasHoje} rotulo="encerradas hoje" cor="bg-emerald-700" />
+          <Indicador valor={stats.data?.semResponsavel} rotulo="sem responsável" cor="bg-white/10" />
+          <Indicador valor={stats.data?.hoje} rotulo="hoje" cor="bg-white/10" />
+          <Indicador valor={stats.data?.encerradasHoje} rotulo="encerradas hoje" cor="bg-white/10" />
         </div>
 
         <div className="ml-auto flex items-center gap-2 text-sm">
@@ -159,11 +159,11 @@ function Area({ eu }: { eu: Servidor }) {
 
         <section className="min-w-0 flex-1 overflow-y-auto">
           {vista === 'mapa' ? (
-            <MapaGeral itens={itens} onSelecionar={(id) => setParams((p) => { const n = new URLSearchParams(p); n.set('caso', id); n.delete('vista'); return n })} />
+            <MapaGeral itens={itens} demo={demo} onSelecionar={(id) => setParams((p) => { const n = new URLSearchParams(p); n.set('caso', id); n.delete('vista'); return n })} />
           ) : selecionado ? (
             <Detalhe key={selecionado} id={selecionado} demo={demo} onFechar={() => definir('caso', null)} onAbrir={(id) => definir('caso', id)} />
           ) : (
-            <div className="grid h-full place-items-center text-slate-400">
+            <div className="grid h-full place-items-center text-slate-500">
               <div className="text-center">
                 <div className="text-5xl">📋</div>
                 <p className="mt-2">Selecione uma ocorrência na fila</p>
@@ -185,7 +185,9 @@ function Indicador({ valor, rotulo, cor }: { valor?: number; rotulo: string; cor
 }
 
 function CartaoFila({ o, ativo, novo, demo, agora, onClick }: { o: ItemFila; ativo: boolean; novo: boolean; demo: boolean; agora: number; onClick: () => void }) {
-  const texto = o.resumoIa ?? (demo ? null : o.relato)
+  // No modo demo nada escrito pela plateia vai para o telão: nem o relato, nem o resumo que a IA faz dele, nem o endereço.
+  const texto = demo ? null : (o.resumoIa ?? o.relato)
+  const local = !o.endereco ? 'Local no mapa' : demo ? 'Endereço informado' : o.endereco
   return (
     <button
       onClick={onClick}
@@ -209,9 +211,9 @@ function CartaoFila({ o, ativo, novo, demo, agora, onClick }: { o: ItemFila; ati
             texto && <p className="line-clamp-2 text-sm text-slate-700">{o.resumoIa && '✨ '}{texto}</p>
           )}
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span className="truncate">📍 {o.endereco ?? 'Local no mapa'}</span>
+            <span className="truncate">📍 {local}</span>
             {o.fotos > 0 && <span>📷</span>}
-            <span className="ml-auto shrink-0">{o.responsavel ?? <span className="font-medium text-amber-700">Sem responsável</span>}</span>
+            <span className="ml-auto shrink-0">{o.responsavel ?? <span className="font-semibold text-slate-900">Sem responsável</span>}</span>
             <SeloStatus status={o.status} />
           </div>
         </div>

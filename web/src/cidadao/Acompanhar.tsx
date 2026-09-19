@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, ErroApi } from '../api'
 import type { OcorrenciaPublica } from '../tipos'
-import { BotaoLigar, Carregando, horario, rotuloCategoria, SeloStatus } from '../ui'
+import { BotaoLigar, Carregando, CLASSE_PRIORIDADE, horario, Pata, rotuloCategoria, SeloStatus } from '../ui'
 import { lerProtocolos } from './meusProtocolos'
 
 export default function Acompanhar() {
@@ -48,12 +48,13 @@ export default function Acompanhar() {
 
   return (
     <Casca>
-      <section className="px-5 pt-6 pb-5 text-white" style={{ backgroundColor: p.cor }}>
-        {novo && <p className="mb-2 text-sm font-medium opacity-90">✓ Ocorrência registrada</p>}
-        <p className="text-sm opacity-90">Prioridade</p>
+      {/* Sem opacity no texto: sobre a cor da prioridade ela derrubava o contraste abaixo de 4,5:1. */}
+      <section className={`px-5 pt-6 pb-5 ${CLASSE_PRIORIDADE[o.prioridade]}`}>
+        {novo && <p className="mb-2 text-sm font-semibold">✓ Ocorrência registrada</p>}
+        <p className="text-sm">Prioridade</p>
         <p className="text-3xl font-bold">{p.rotulo}</p>
-        <p className="mt-0.5 opacity-90">{p.prazo}</p>
-        <p className="mt-3 text-sm opacity-90">{o.motivos.join(' · ')}</p>
+        <p className="mt-0.5 font-medium">{p.prazo}</p>
+        <p className="mt-3 text-sm">{o.motivos.join(' · ')}</p>
       </section>
 
       <div className="space-y-4 p-4">
@@ -78,7 +79,7 @@ export default function Acompanhar() {
                 </li>
               ))}
             </ul>
-            {!ORIENTACOES_VALIDADAS && <p className="mt-3 text-[11px] text-slate-400">Orientações em validação com médico-veterinário.</p>}
+            {!ORIENTACOES_VALIDADAS && <p className="mt-3 text-[11px] text-slate-500">Orientações em validação com médico-veterinário.</p>}
           </section>
         )}
 
@@ -112,7 +113,7 @@ export default function Acompanhar() {
                   } ${i === destaque ? 'destaque-novo' : ''}`}
                 />
                 <p className={`text-[15px] leading-snug ${i === destaque ? 'font-semibold text-marca-900' : ''}`}>{e.texto}</p>
-                <p className="text-xs text-slate-400">{horario(e.criadoEm)}</p>
+                <p className="text-xs text-slate-500">{horario(e.criadoEm)}</p>
               </li>
             ))}
           </ol>
@@ -166,7 +167,7 @@ function Casca({ children }: { children: ReactNode }) {
     <main className="mx-auto min-h-full max-w-md bg-slate-50">
       <header className="flex items-center gap-2 bg-marca-700 px-4 py-3 text-white">
         <Link to="/" className="flex items-center gap-2 font-semibold">
-          🐾 Central Animal
+          <Pata className="size-5" /> Central Animal
         </Link>
       </header>
       {children}

@@ -1,12 +1,33 @@
 import { CATEGORIAS, PERGUNTAS, PRIORIDADES, type Categoria, type Prioridade, type Servico } from '@ca/triagem'
 import { useEffect, useState, type ReactNode } from 'react'
 
+// Cor é da prioridade. O status fala pelo peso: cheio = ninguém pegou ainda, contorno = em andamento, apagado = fechado.
 export const STATUS: Record<string, { rotulo: string; classe: string }> = {
-  nova: { rotulo: 'Nova', classe: 'bg-sky-100 text-sky-800' },
-  em_atendimento: { rotulo: 'Em atendimento', classe: 'bg-violet-100 text-violet-800' },
-  encaminhada: { rotulo: 'Encaminhada', classe: 'bg-amber-100 text-amber-800' },
-  encerrada: { rotulo: 'Encerrada', classe: 'bg-emerald-100 text-emerald-800' },
-  improcedente: { rotulo: 'Improcedente', classe: 'bg-slate-200 text-slate-600' },
+  nova: { rotulo: 'Nova', classe: 'bg-slate-900 text-white' },
+  em_atendimento: { rotulo: 'Em atendimento', classe: 'bg-white text-slate-800 ring-1 ring-slate-300 ring-inset' },
+  encaminhada: { rotulo: 'Encaminhada', classe: 'bg-white text-slate-800 ring-1 ring-slate-300 ring-inset' },
+  encerrada: { rotulo: 'Encerrada', classe: 'bg-slate-100 text-slate-600' },
+  improcedente: { rotulo: 'Improcedente', classe: 'bg-slate-100 text-slate-600' },
+}
+
+// Fundo + texto de cada prioridade. Branco só passa de 4,5:1 no P1; nas outras cores o texto escuro é o que se lê.
+export const CLASSE_PRIORIDADE: Record<Prioridade, string> = {
+  1: 'bg-p1 text-white',
+  2: 'bg-p2 text-slate-900',
+  3: 'bg-p3 text-slate-900',
+  4: 'bg-p4 text-slate-900',
+}
+
+/** Aberto no próprio notebook (não pelo túnel): só aqui aparecem o atalho do painel e o login de teste. */
+export const ACESSO_LOCAL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+
+/** Pata do deck (Font Awesome Free 6, CC BY 4.0 — fontawesome.com/license/free). */
+export function Pata({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 512 512" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M226.5 92.9c14.3 42.9-.3 86.2-32.6 96.8s-70.1-15.6-84.4-58.5s.3-86.2 32.6-96.8s70.1 15.6 84.4 58.5zM100.4 198.6c18.9 32.4 14.3 70.1-10.2 84.1s-59.7-.9-78.5-33.3S-2.7 179.3 21.8 165.3s59.7 .9 78.5 33.3zM69.2 401.2C121.6 259.9 214.7 224 256 224s134.4 35.9 186.8 177.2c3.6 9.7 5.2 20.1 5.2 30.5l0 1.6c0 25.8-20.9 46.7-46.7 46.7c-11.5 0-22.9-1.4-34-4.2l-88-22c-15.3-3.8-31.3-3.8-46.6 0l-88 22c-11.1 2.8-22.5 4.2-34 4.2C84.9 480 64 459.1 64 433.3l0-1.6c0-10.4 1.6-20.8 5.2-30.5zM421.8 282.7c-24.5-14-29.1-51.7-10.2-84.1s54-47.3 78.5-33.3s29.1 51.7 10.2 84.1s-54 47.3-78.5 33.3zM310.1 189.7c-32.3-10.6-46.9-53.9-32.6-96.8s52.1-69.1 84.4-58.5s46.9 53.9 32.6 96.8s-52.1 69.1-84.4 58.5z" />
+    </svg>
+  )
 }
 
 export const EMOJI_CATEGORIA: Record<Categoria, string> = {
@@ -25,8 +46,7 @@ export const corPrioridade = (p: Prioridade) => PRIORIDADES[p].cor
 export function SeloPrioridade({ p, grande = false }: { p: Prioridade; grande?: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full font-semibold text-white ${grande ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-xs'}`}
-      style={{ backgroundColor: corPrioridade(p) }}
+      className={`inline-flex items-center gap-1.5 rounded-full font-semibold ${CLASSE_PRIORIDADE[p]} ${grande ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-xs'}`}
     >
       P{p} · {PRIORIDADES[p].rotulo}
     </span>

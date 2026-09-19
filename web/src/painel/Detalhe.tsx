@@ -28,7 +28,6 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
     refetchInterval: 3000,
   })
   const servidores = useQuery({ queryKey: ['servidores'], queryFn: () => api<Servidor[]>('/api/painel/servidores') })
-  const [mostrarRelato, setMostrarRelato] = useState(false)
 
   const acao = useMutation({
     mutationFn: (corpo: object) => enviarJson(`/api/painel/ocorrencias/${id}`, corpo, 'PATCH'),
@@ -62,7 +61,7 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
             Registrada {tempoRelativo(o.criadoEm)} ({horario(o.criadoEm)}) · {o.responsavel ? `Responsável: ${o.responsavel}` : 'Sem responsável'}
           </p>
         </div>
-        <button onClick={onFechar} className="rounded-lg px-3 py-1 text-2xl text-slate-400 hover:bg-slate-100">
+        <button onClick={onFechar} aria-label="Fechar" className="rounded-lg px-3 py-1 text-2xl text-slate-500 hover:bg-slate-100">
           ×
         </button>
       </div>
@@ -111,13 +110,17 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
               <span className="size-4 animate-spin rounded-full border-2 border-marca-100 border-t-marca-600" /> Analisando relato e foto…
             </p>
           )}
-          {o.resumoIa && <p className="text-[15px] leading-snug">{o.resumoIa}</p>}
-          {o.analiseFotoIa && (
-            <p className="mt-2 text-sm text-slate-700">
-              <b>Foto:</b> {o.analiseFotoIa}
-            </p>
+          {(o.resumoIa || o.analiseFotoIa) && (
+            <Revelar demo={demo} rotulo="Mostrar análise da IA (oculta no modo demo)">
+              {o.resumoIa && <p className="text-[15px] leading-snug">{o.resumoIa}</p>}
+              {o.analiseFotoIa && (
+                <p className="mt-2 text-sm text-slate-700">
+                  <b>Foto:</b> {o.analiseFotoIa}
+                </p>
+              )}
+            </Revelar>
           )}
-          {!o.resumoIa && !o.analiseFotoIa && o.iaStatus !== 'pendente' && <p className="text-sm text-slate-400">Sem relato livre nem foto para analisar.</p>}
+          {!o.resumoIa && !o.analiseFotoIa && o.iaStatus !== 'pendente' && <p className="text-sm text-slate-500">Sem relato livre nem foto para analisar.</p>}
           {o.sugestaoIa && (
             <p className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500">
               {divergencias.length === 0
@@ -140,13 +143,9 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
 
         {o.relato && (
           <Cartao titulo="Relato do cidadão">
-            {demo && !mostrarRelato ? (
-              <button onClick={() => setMostrarRelato(true)} className="text-sm text-marca-700 underline">
-                Mostrar relato (oculto no modo demo)
-              </button>
-            ) : (
+            <Revelar demo={demo} rotulo="Mostrar relato (oculto no modo demo)">
               <p className="text-[15px] leading-snug whitespace-pre-wrap">“{o.relato}”</p>
-            )}
+            </Revelar>
           </Cartao>
         )}
 
@@ -157,18 +156,28 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
               <Marker position={[o.lat, o.lng]} icon={pino} />
             </MapContainer>
           )}
-          <p className="mt-2 text-sm">{o.endereco ?? 'Sem referência escrita'}</p>
+          <div className="mt-2 text-sm">
+            {o.endereco ? (
+              <Revelar demo={demo} rotulo="Mostrar endereço (oculto no modo demo)">
+                <p>{o.endereco}</p>
+              </Revelar>
+            ) : (
+              <p>Sem referência escrita</p>
+            )}
+          </div>
         </Cartao>
 
         {o.fotos.length > 0 && (
           <Cartao titulo="Fotos">
-            <div className="flex gap-2">
-              {o.fotos.map((f) => (
-                <a key={f} href={f} target="_blank" rel="noreferrer">
-                  <img src={f} alt="Foto da ocorrência" className="h-40 rounded-lg object-cover" />
-                </a>
-              ))}
-            </div>
+            <Revelar demo={demo} rotulo={o.fotos.length === 1 ? 'Mostrar foto (oculta no modo demo)' : 'Mostrar fotos (ocultas no modo demo)'}>
+              <div className="flex gap-2">
+                {o.fotos.map((f) => (
+                  <a key={f} href={f} target="_blank" rel="noreferrer">
+                    <img src={f} alt="Foto da ocorrência" className="h-40 rounded-lg object-cover" />
+                  </a>
+                ))}
+              </div>
+            </Revelar>
           </Cartao>
         )}
 
@@ -222,7 +231,7 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
             <li key={e.id} className="relative">
               <span className="absolute top-1.5 -left-[21px] size-2.5 rounded-full bg-marca-600" />
               <p className="text-sm">{e.texto}</p>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 {horario(e.criadoEm)} · {e.autor} {e.visivelCidadao ? '· 👁 visível ao cidadão' : '· 🔒 interno'}
               </p>
             </li>
@@ -375,6 +384,17 @@ function Acoes(props: {
         {props.erro && <p className="text-sm text-red-600">{props.erro}</p>}
       </div>
     </Cartao>
+  )
+}
+
+/** Modo demo: o que a plateia escreveu ou fotografou só vai para o telão depois de um clique do operador. */
+function Revelar({ demo, rotulo, children }: { demo: boolean; rotulo: string; children: ReactNode }) {
+  const [aberto, setAberto] = useState(false)
+  if (!demo || aberto) return <>{children}</>
+  return (
+    <button onClick={() => setAberto(true)} className="text-sm text-marca-700 underline">
+      {rotulo}
+    </button>
   )
 }
 

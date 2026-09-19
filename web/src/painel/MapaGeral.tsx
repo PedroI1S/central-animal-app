@@ -3,7 +3,7 @@ import { CircleMarker, MapContainer, TileLayer, Tooltip } from 'react-leaflet'
 import { PATO_BRANCO } from '../cidadao/MapaPino'
 import type { ItemFila } from '../tipos'
 
-export default function MapaGeral({ itens, onSelecionar }: { itens: ItemFila[]; onSelecionar: (id: string) => void }) {
+export default function MapaGeral({ itens, demo, onSelecionar }: { itens: ItemFila[]; demo: boolean; onSelecionar: (id: string) => void }) {
   return (
     <MapContainer center={PATO_BRANCO} zoom={14} className="h-full w-full">
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
@@ -19,8 +19,13 @@ export default function MapaGeral({ itens, onSelecionar }: { itens: ItemFila[]; 
           >
             <Tooltip>
               <b>{o.protocolo}</b> · {CATEGORIAS[o.categoria]}
-              <br />
-              {o.endereco}
+              {/* Endereço é texto livre da plateia: fica fora do telão no modo demo. */}
+              {!demo && o.endereco && (
+                <>
+                  <br />
+                  {o.endereco}
+                </>
+              )}
             </Tooltip>
           </CircleMarker>
         ))}
