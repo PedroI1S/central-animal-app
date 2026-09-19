@@ -1,9 +1,9 @@
 import { Link } from 'react-router'
 import { ACESSO_LOCAL, Pata } from '../ui'
-import { lerProtocolos } from './meusProtocolos'
+import { useProtocolosSalvos } from './meusProtocolos'
 
 export default function Inicio() {
-  const recentes = lerProtocolos()
+  const recentes = useProtocolosSalvos()
   return (
     <main className="mx-auto flex min-h-full max-w-md flex-col bg-white">
       <header className="bg-gradient-to-br from-marca-700 to-marca-900 px-6 pt-12 pb-10 text-white">

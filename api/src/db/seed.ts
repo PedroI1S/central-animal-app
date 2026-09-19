@@ -10,7 +10,8 @@ const CENTRO = { lat: -26.2295, lng: -52.6711 }
 
 if (process.argv.includes('--reset')) {
   await db.execute(sql`truncate ${eventos}, ${anexos}, ${ocorrencias}, ${servidores} restart identity cascade`)
-  await db.execute(sql`alter sequence protocolo_seq restart with 100`)
+  // A numeração de protocolo NÃO volta para 100: os celulares guardam os protocolos antigos, e um número
+  // reaproveitado abriria o caso de outra pessoa. O reset limpa os casos; os números seguem subindo.
   console.log('Banco limpo.')
 }
 

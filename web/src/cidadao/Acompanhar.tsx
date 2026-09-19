@@ -5,18 +5,28 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, ErroApi } from '../api'
 import type { OcorrenciaPublica } from '../tipos'
 import { BotaoLigar, Carregando, CLASSE_PRIORIDADE, horario, Pata, rotuloCategoria, SeloStatus } from '../ui'
-import { lerProtocolos } from './meusProtocolos'
+import { esquecerProtocolo, useProtocolosSalvos } from './meusProtocolos'
+
+const naoExiste = (e: unknown) => e instanceof ErroApi && e.status === 404
 
 export default function Acompanhar() {
   const { protocolo = '' } = useParams()
   const [busca] = useSearchParams()
   const novo = busca.get('novo') === '1'
 
-  const { data: o, error, isLoading } = useQuery({
+  const { data: o, error } = useQuery({
     queryKey: ['publica', protocolo],
     queryFn: () => api<OcorrenciaPublica>(`/api/ocorrencias/${encodeURIComponent(protocolo)}`),
-    refetchInterval: 5000,
+    // 404 não passa a existir sozinho: nem repete a consulta nem segue consultando.
+    retry: (falhas, e) => !naoExiste(e) && falhas < 1,
+    refetchInterval: (q) => (naoExiste(q.state.error) ? false : 5000),
   })
+
+  // Protocolo que não existe mais sai da lista "Seus protocolos" deste aparelho.
+  const inexistente = naoExiste(error)
+  useEffect(() => {
+    if (inexistente) esquecerProtocolo(protocolo)
+  }, [inexistente, protocolo])
 
   // Quando o servidor registra algo novo, destaca e vibra o celular — o "olhe o seu celular agora" da demo.
   const vistos = useRef<number | null>(null)
@@ -30,18 +40,21 @@ export default function Acompanhar() {
     vistos.current = o.eventos.length
   }, [o])
 
-  if (isLoading) return <Carregando />
-  if (error || !o)
+  // Sem resposta ainda (ou consulta pausada, sem rede) é "carregando", não erro. Se uma consulta periódica
+  // falhar com o caso já na tela (oscilação do 4G), o caso continua visível até a próxima dar certo.
+  if (!o || inexistente) {
+    if (!error) return <Carregando />
     return (
       <Casca>
         <div className="p-6 text-center">
-          <p className="text-lg font-semibold">{error instanceof ErroApi && error.status === 404 ? 'Protocolo não encontrado' : 'Não foi possível carregar'}</p>
+          <p className="text-lg font-semibold">{inexistente ? 'Protocolo não encontrado' : 'Não foi possível carregar'}</p>
           <Link to="/acompanhar" className="mt-4 inline-block text-marca-700 underline">
             Tentar outro protocolo
           </Link>
         </div>
       </Casca>
     )
+  }
 
   const p = PRIORIDADES[o.prioridade]
   const encerrada = o.status === 'encerrada' || o.status === 'improcedente'
@@ -130,7 +143,7 @@ export default function Acompanhar() {
 export function BuscarProtocolo() {
   const navegar = useNavigate()
   const [valor, setValor] = useState('')
-  const recentes = lerProtocolos()
+  const recentes = useProtocolosSalvos()
   const enviar = (e: FormEvent) => {
     e.preventDefault()
     if (valor.trim()) navegar(`/acompanhar/${valor.trim().toUpperCase()}`)
