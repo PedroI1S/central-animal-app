@@ -526,6 +526,132 @@ async function main() {
     })
   }
 
+  // B5 Como a IA decide — a árvore que o Qwen preenche (api/src/llm.ts + packages/triagem)
+  {
+    const s = apoio('Como a IA decide — e quando ela pergunta de volta')
+    const seta = (x, y, w, h, o = {}) =>
+      s.addShape('line', { x, y, w, h, flipH: o.flipH, flipV: o.flipV, line: { color: C.cinza, width: 1.75, endArrowType: o.sem ? undefined : 'triangle' } })
+    const fio = (x, y, w, h) => s.addShape('line', { x, y, w, h, line: { color: C.cinzaClaro, width: 1.25 } })
+
+    // --- Fluxo: relato → Qwen → tem certeza? → cidadão confirma ---
+    const Y = 1.7
+    const H = 1.15
+    const meio = Y + H / 2
+    const passo = (img, cor, t1, d, x, w) => {
+      card(s, x, Y, w, H)
+      circuloIcone(s, img, x + 0.2, Y + 0.18, 0.5, cor)
+      texto(s, t1, { x: x + 0.82, y: Y + 0.18, w: w - 0.95, h: 0.5, fontSize: 15, bold: true, color: C.tinta, valign: 'middle' })
+      texto(s, d, { x: x + 0.2, y: Y + 0.74, w: w - 0.35, h: 0.36, fontSize: 11, color: C.cinza, valign: 'top' })
+    }
+    passo(I.celular, C.marca, 'Relato livre', '“tem um bicho estranho no quintal”', 0.7, 2.45)
+    seta(3.15, meio, 0.33, 0)
+    passo(I.cerebro, C.marca, 'IA local (Qwen)', 'escolhe um dos 10 casos da árvore e os sinais citados', 3.5, 2.85)
+    seta(6.35, meio, 0.33, 0)
+    // Losango: a certeza é medida (probabilidade do caso escolhido), não a opinião do modelo
+    s.addShape('diamond', { x: 6.7, y: Y - 0.03, w: 2.2, h: H + 0.06, fill: { color: C.noite }, line: { color: C.noite } })
+    texto(s, [
+      { text: 'Tem certeza?', options: { fontSize: 14, bold: true, color: C.branco, breakLine: true } },
+      { text: '≥ 80%', options: { fontSize: 11, color: C.mentaSuave } },
+    ], { x: 6.9, y: Y + 0.2, w: 1.8, h: 0.75, align: 'center', valign: 'middle' })
+    seta(8.9, meio, 0.28, 0)
+    texto(s, 'sim', { x: 8.86, y: meio - 0.34, w: 0.4, h: 0.26, fontSize: 11, bold: true, color: C.p4, align: 'center' })
+    passo(I.usuario, C.marca, 'Cidadão confirma', '“Entendi assim. Está certo?” · Corrigir volta à IA', 9.18, 3.45)
+
+    // "não" → pergunta de volta, e a resposta volta para o Qwen
+    seta(7.8, Y + H + 0.03, 0, 0.3)
+    texto(s, [
+      { text: 'não', options: { bold: true, color: C.p2 } },
+      { text: ' — e a dúvida muda a prioridade', options: { color: C.cinza } },
+    ], { x: 7.9, y: Y + H + 0.02, w: 2.6, h: 0.26, fontSize: 10.5 })
+    const P = { x: 6.55, y: 3.2, w: 2.5, h: 0.8 }
+    s.addShape('roundRect', { ...P, rectRadius: 0.1, fill: { color: 'F0FDFA' }, line: { color: C.marcaClara, width: 1.25 } })
+    texto(s, [
+      { text: 'Pergunta de volta', options: { fontSize: 12.5, bold: true, color: C.marca, breakLine: true } },
+      { text: '“É um animal silvestre ou precisa de resgate?”', options: { fontSize: 10, italic: true, color: C.tinta } },
+    ], { x: P.x + 0.15, y: P.y + 0.08, w: P.w - 0.3, h: P.h - 0.16, valign: 'middle' })
+    const xQwen = 3.5 + 2.85 / 2
+    seta(xQwen, P.y + P.h / 2, P.x - xQwen, 0, { sem: true })
+    seta(xQwen, Y + H, 0, P.y + P.h / 2 - (Y + H), { flipV: true })
+    texto(s, 'a resposta volta para a IA\n(até 2 rodadas)', { x: xQwen + 0.12, y: P.y + P.h / 2 + 0.04, w: 2.0, h: 0.4, fontSize: 10, color: C.cinza })
+    // Perguntas que não dependem da certeza da IA
+    texto(s, [
+      { text: 'Pergunta sempre, mesmo com certeza:', options: { bold: true, color: C.tinta, breakLine: true } },
+      { text: 'citou pessoa ferida → “Alguém está em risco agora?”', options: { breakLine: true } },
+      { text: '“morto”, mas com sinal de vida → “Ainda está vivo?”' },
+    ], { x: 0.7, y: 3.12, w: 3.35, h: 0.85, fontSize: 10.5, color: C.cinza, valign: 'top' })
+
+    // --- Árvore: os 10 casos que o Qwen pode escolher, com a prioridade que as regras dão ---
+    const folhas = [
+      ['Atropelado', 1, 'veículo envolvido'],
+      ['Ferido ou doente', 2, 'sem veículo'],
+      ['Envenenado', 1, 'veneno ou isca'],
+      ['Maus-tratos', 2, 'flagrante → P1 + PM'],
+      ['Abandonado', 4, 'com filhotes → P3'],
+      ['Morto na via', 4, 'Serviços Urbanos'],
+      ['Outra situação', 3, 'resgate, animal bravo'],
+      ['Perto de pessoas', 1, 'Bombeiros + IAT'],
+      ['Ferido', 2, 'IAT / Pol. Ambiental'],
+      ['Só avistado', 3, 'sem risco'],
+    ]
+    const COR = { 1: C.p1, 2: C.p2, 3: C.p3, 4: C.p4 }
+    const NIVEL = { 1: 'Crítica', 2: 'Alta', 3: 'Média', 4: 'Baixa' }
+    const L = 1.083
+    const xFolha = (i) => 0.7 + i * (L + 0.1) + (i >= 7 ? 0.2 : 0)
+    const centro = (i) => xFolha(i) + L / 2
+    const grupos = [
+      ['Animal doméstico', 0, 6],
+      ['Animal silvestre', 7, 9],
+    ]
+    const yBarra = 4.25
+    const yGrupo = 4.4
+    const yPente = 4.86
+    const yFolha = 4.98
+    const xDom = (xFolha(0) + xFolha(6) + L) / 2
+    const xSil = (xFolha(7) + xFolha(9) + L) / 2
+    // O caso confirmado desce do cartão do cidadão e se divide entre doméstico e silvestre
+    seta(xSil, Y + H, 0, yBarra - (Y + H), { sem: true })
+    texto(s, 'as regras decidem\na prioridade', { x: xSil - 2.05, y: 3.35, w: 1.9, h: 0.5, fontSize: 11.5, bold: true, color: C.noite, align: 'right' })
+    fio(xDom, yBarra, xSil - xDom, 0)
+    s.addShape('ellipse', { x: xSil - 0.06, y: yBarra - 0.06, w: 0.12, h: 0.12, fill: { color: C.cinza }, line: { color: C.cinza } })
+    fio(xDom, yBarra, 0, yGrupo - yBarra)
+    fio(xSil, yBarra, 0, yGrupo - yBarra)
+    for (const [nome, a, b] of grupos) {
+      const x = xFolha(a)
+      const w = xFolha(b) + L - x
+      s.addShape('roundRect', { x, y: yGrupo, w, h: 0.32, rectRadius: 0.16, fill: { color: C.noite }, line: { color: C.noite } })
+      texto(s, nome, { x, y: yGrupo, w, h: 0.32, fontSize: 12, bold: true, color: C.branco, align: 'center', valign: 'middle' })
+      fio(x + w / 2, yGrupo + 0.32, 0, yPente - yGrupo - 0.32)
+      fio(centro(a), yPente, centro(b) - centro(a), 0)
+      for (let i = a; i <= b; i++) fio(centro(i), yPente, 0, yFolha - yPente)
+    }
+    folhas.forEach(([nome, p, nota], i) => {
+      const x = xFolha(i)
+      card(s, x, yFolha, L, 1.15, C.branco)
+      s.addShape('rect', { x, y: yFolha, w: L, h: 0.3, fill: { color: COR[p] }, line: { color: COR[p] } })
+      texto(s, `P${p} · ${NIVEL[p]}`, { x, y: yFolha, w: L, h: 0.3, fontSize: 9.5, bold: true, color: p === 1 ? C.branco : C.tinta, align: 'center', valign: 'middle' })
+      texto(s, nome, { x: x + 0.06, y: yFolha + 0.34, w: L - 0.12, h: 0.42, fontSize: 11, bold: true, color: C.tinta, align: 'center', valign: 'middle' })
+      texto(s, nota, { x: x + 0.06, y: yFolha + 0.76, w: L - 0.12, h: 0.36, fontSize: 9, color: C.cinza, align: 'center', valign: 'top' })
+    })
+
+    // --- Regras que valem para qualquer folha ---
+    card(s, 0.7, 6.27, 11.93, 0.5)
+    texto(s, [
+      { text: 'Sinal vital citado — sangramento, falta de ar, inconsciência ou convulsão — leva qualquer caso a ' },
+      { text: 'P1', options: { bold: true, color: C.p1 } },
+      { text: '.  Não levanta ou vômito: no mínimo ' },
+      { text: 'P2', options: { bold: true, color: C.p2 } },
+      { text: '.  Sinal que só a IA deduziu, o cidadão confirma com um toque.' },
+    ], { x: 0.9, y: 6.27, w: 11.55, h: 0.5, fontSize: 11.5, color: C.tinta, valign: 'middle' })
+    texto(s, 'Nunca vêm da IA: pessoa em risco, flagrante e filhotes. IA lenta ou fora do ar → a mesma árvore, em botões.', {
+      x: 0.7, y: 6.88, w: 11.93, h: 0.32, fontSize: 11.5, color: C.cinza, italic: true,
+    })
+    s.addNotes(
+      'Se perguntarem como a IA funciona:\n' +
+        'A IA não inventa categorias: ela só escolhe um destes 10 casos e os sinais que a pessoa citou. E ela mede a própria dúvida — não é a opinião do modelo, é a probabilidade que ele deu à resposta. Abaixo de 80%, e só se a dúvida mudar a prioridade, ela pergunta de volta, no máximo duas vezes. ' +
+        'O cidadão confirma, e as cores vêm das regras, não da IA. Testamos com 63 relatos difíceis — gíria, negação, inglês, emoji, tentativa de enganar a IA: 63 de 63.',
+    )
+  }
+
   const saida = path.join(__dirname, 'Central-Animal-Pitch.pptx')
   await pres.writeFile({ fileName: saida })
   console.log('Gerado:', saida)

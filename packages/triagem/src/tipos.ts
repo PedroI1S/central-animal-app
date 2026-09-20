@@ -29,6 +29,16 @@ export interface Pergunta {
 
 export type Respostas = Record<string, string | string[]>
 
+/** Competência exigida de quem atende — ver `capacidades.ts`. */
+export type Capacidade =
+  | 'emergencia_humana'
+  | 'clinica_veterinaria'
+  | 'grande_porte'
+  | 'resgate_fauna'
+  | 'serpentes'
+  | 'aves'
+  | 'remocao'
+
 export interface Servico {
   id: string
   nome: string

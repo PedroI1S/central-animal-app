@@ -20,3 +20,10 @@ export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
 
 export const enviarJson = <T,>(url: string, corpo: unknown, method = 'POST') =>
   api<T>(url, { method, body: JSON.stringify(corpo) })
+
+/** Sinal que aborta a requisição depois de `ms` (AbortSignal.timeout só existe do iOS 16 em diante). */
+export function comPrazo(ms: number): AbortSignal {
+  const c = new AbortController()
+  setTimeout(() => c.abort(), ms)
+  return c.signal
+}

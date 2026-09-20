@@ -5,11 +5,13 @@ import { client, db, schema } from './index.ts'
 
 // Dados FICTÍCIOS para demonstração. Coordenadas aproximadas de Pato Branco (PR).
 
-const { ocorrencias, eventos, servidores, anexos } = schema
+const { ocorrencias, eventos, servidores, anexos, profissionais } = schema
 const CENTRO = { lat: -26.2295, lng: -52.6711 }
 
+const SOMENTE_PROFISSIONAIS = process.argv.includes('--somente-profissionais')
+
 if (process.argv.includes('--reset')) {
-  await db.execute(sql`truncate ${eventos}, ${anexos}, ${ocorrencias}, ${servidores} restart identity cascade`)
+  await db.execute(sql`truncate ${eventos}, ${anexos}, ${ocorrencias}, ${servidores}, ${profissionais} restart identity cascade`)
   // A numeração de protocolo NÃO volta para 100: os celulares guardam os protocolos antigos, e um número
   // reaproveitado abriria o caso de outra pessoa. O reset limpa os casos; os números seguem subindo.
   console.log('Banco limpo.')
@@ -26,6 +28,115 @@ const equipe = await db
   .returning()
 
 const [ana, carlos, juliana] = equipe.length ? equipe : await db.select().from(servidores)
+
+// ⚠️ FICTÍCIO — quem atende em campo, para a recomendação por capacidade + distância.
+// Nomes, telefones e coordenadas são de demonstração; só 190/193 são reais.
+// Deslocamentos em graus: ~0,009° ≈ 1 km nesta latitude.
+const km = (n: number) => n * 0.009
+// Cadastro de referência: recriado inteiro a cada seed. Sem isto, re-semear duplica as linhas
+// (`onConflictDoNothing` não tem constraint única em que se agarrar).
+await db.execute(sql`truncate ${profissionais} restart identity cascade`)
+await db
+  .insert(profissionais)
+  .values([
+    {
+      nome: 'Pronto-Socorro do Hospital Regional',
+      orgao: 'Saúde — referência regional',
+      telefone: null,
+      lat: CENTRO.lat - km(0.7),
+      lng: CENTRO.lng + km(0.5),
+      capacidades: ['emergencia_humana'],
+      atende24h: true,
+      observacao: 'Referência para acidentes com animais peçonhentos — confirmar soro por telefone',
+    },
+    {
+      nome: 'UPA 24h Sudoeste',
+      orgao: 'Prefeitura de Pato Branco',
+      telefone: null,
+      lat: CENTRO.lat + km(1.6),
+      lng: CENTRO.lng + km(1.9),
+      capacidades: ['emergencia_humana'],
+      atende24h: true,
+      observacao: 'Estabilização e regulação para o hospital de referência',
+    },
+    {
+      nome: 'Clínica Veterinária Pata Amiga',
+      orgao: 'Rede credenciada',
+      telefone: null,
+      lat: CENTRO.lat + km(0.4),
+      lng: CENTRO.lng - km(0.3),
+      capacidades: ['clinica_veterinaria'],
+      atende24h: false,
+      observacao: 'Seg–sáb, 8h–19h',
+    },
+    {
+      nome: 'Hospital Veterinário 24h Sul',
+      orgao: 'Rede credenciada',
+      telefone: null,
+      lat: CENTRO.lat - km(1.8),
+      lng: CENTRO.lng + km(1.1),
+      capacidades: ['clinica_veterinaria', 'grande_porte'],
+      atende24h: true,
+      observacao: 'Plantão noturno e fins de semana',
+    },
+    {
+      nome: 'Clínica Bicho do Campo',
+      orgao: 'Rede credenciada',
+      telefone: null,
+      lat: CENTRO.lat + km(3.2),
+      lng: CENTRO.lng + km(2.6),
+      capacidades: ['clinica_veterinaria', 'grande_porte'],
+      atende24h: false,
+      observacao: 'Atende equinos e bovinos no local',
+    },
+    {
+      nome: 'Corpo de Bombeiros — 3º Subgrupamento',
+      orgao: 'Estado do Paraná',
+      telefone: '193',
+      lat: CENTRO.lat - km(0.9),
+      lng: CENTRO.lng - km(0.6),
+      capacidades: ['resgate_fauna', 'serpentes'],
+      atende24h: true,
+      observacao: 'Captura de serpentes em área urbana',
+    },
+    {
+      nome: 'IAT — Escritório Regional',
+      orgao: 'Estado do Paraná',
+      telefone: null,
+      lat: CENTRO.lat + km(2.1),
+      lng: CENTRO.lng - km(1.7),
+      capacidades: ['resgate_fauna', 'aves', 'serpentes'],
+      atende24h: false,
+      observacao: 'Dias úteis, 8h–17h',
+    },
+    {
+      nome: 'Centro de Triagem de Aves Silvestres',
+      orgao: 'Convênio universidade',
+      telefone: null,
+      lat: CENTRO.lat + km(1.2),
+      lng: CENTRO.lng + km(3.4),
+      capacidades: ['resgate_fauna', 'aves'],
+      atende24h: false,
+      observacao: 'Recebe aves para reabilitação',
+    },
+    {
+      nome: 'Serviços Urbanos — Equipe de Remoção',
+      orgao: 'Prefeitura de Pato Branco',
+      telefone: null,
+      lat: CENTRO.lat - km(2.4),
+      lng: CENTRO.lng - km(2.2),
+      capacidades: ['remocao'],
+      atende24h: false,
+      observacao: 'Recolhimento em via pública',
+    },
+  ])
+  .onConflictDoNothing()
+
+if (SOMENTE_PROFISSIONAIS) {
+  console.log(`Seed: ${await db.$count(profissionais)} profissionais (ocorrências intactas).`)
+  await client.end()
+  process.exit(0)
+}
 
 type Caso = {
   r: Respostas
@@ -50,7 +161,9 @@ const casos: Caso[] = [
   { r: { ...N, situacao: 'abandono', abandono_filhotes: 'nao' }, relato: 'Cachorro caramelo de coleira vermelha andando perdido perto do mercado.', bairro: 'Centro', dLat: 0.0012, dLng: 0.0015, minutosAtras: 60 * 3 },
   { r: { ...N, situacao: 'envenenamento', sinais: ['vomito', 'convulsao'], outros_animais: 'sim' }, relato: 'Meu gato começou a babar e tremer, o cachorro da vizinha morreu ontem igual.', resumo: 'Gato com salivação e tremores; vizinha relata morte de cão com sintomas semelhantes — possível envenenamento em série.', bairro: 'Bairro La Salle', dLat: -0.0035, dLng: -0.0081, minutosAtras: 42, status: 'em_atendimento', resp: carlos, providencias: ['Tutor orientado a seguir para o plantão veterinário.', 'Vigilância Sanitária notificada sobre possível isca em via pública.'] },
   { r: { ...N, situacao: 'ferido', sinais: ['nao_levanta'] }, relato: 'Gato machucado na pata, não consegue andar direito, fica escondido embaixo do carro.', bairro: 'Bairro Fraron', dLat: 0.0105, dLng: 0.0031, minutosAtras: 95 },
-  { r: { pessoa_risco: 'nao', tipo_animal: 'silvestre', situacao_silvestre: 'avistado' }, relato: 'Tem um gambá andando no quintal todas as noites.', bairro: 'Bairro Planalto', dLat: -0.0122, dLng: -0.0023, minutosAtras: 60 * 7 },
+  { r: { pessoa_risco: 'nao', tipo_animal: 'silvestre', situacao_silvestre: 'avistado', grupo_silvestre: 'mamifero' }, relato: 'Tem um gambá andando no quintal todas as noites.', bairro: 'Bairro Planalto', dLat: -0.0122, dLng: -0.0023, minutosAtras: 60 * 7 },
+  // Par do atropelamento abaixo: mesma urgência, outro profissional. É o contraste que a demo mostra.
+  { r: { pessoa_risco: 'nao', tipo_animal: 'silvestre', situacao_silvestre: 'ameaca', grupo_silvestre: 'serpente' }, relato: 'Tem uma cobra enrolada atrás da máquina de lavar, não consigo entrar na área de serviço.', resumo: 'Serpente alojada na área de serviço de residência; moradores sem acesso ao cômodo.', bairro: 'Bairro Menino Deus', dLat: -0.0042, dLng: 0.0068, minutosAtras: 18 },
   { r: { ...N, situacao: 'morto_via' }, relato: 'Cachorro morto na lateral da avenida, perto do semáforo.', bairro: 'Bairro São Cristóvão', dLat: 0.0048, dLng: 0.0112, minutosAtras: 60 * 2, status: 'encaminhada', resp: ana, providencias: ['Encaminhado para recolhimento pelos Serviços Urbanos.'] },
   { r: { ...N, situacao: 'atropelamento', sinais: ['sangramento', 'nao_levanta'] }, relato: 'Atropelaram um cachorro na frente da escola, ele está vivo mas sangrando.', resumo: 'Cão atropelado em frente a escola, vivo, com sangramento e sem conseguir levantar.', bairro: 'Bairro Bancários', dLat: -0.0088, dLng: 0.0041, minutosAtras: 60 * 26, status: 'encerrada', resp: juliana, providencias: ['Animal levado ao plantão veterinário conveniado.'], desfecho: 'Animal atendido, estabilizado e encaminhado para adoção após recuperação.' },
   { r: { ...N, situacao: 'abandono', abandono_filhotes: 'nao' }, bairro: 'Bairro Pinheirinho', dLat: 0.0142, dLng: -0.0094, minutosAtras: 60 * 20 },
@@ -97,5 +210,6 @@ for (const c of casos) {
   if (c.status) await db.update(ocorrencias).set({ atualizadoEm: new Date(criadoEm.getTime() + linha.length * 7 * 60_000) }).where(eq(ocorrencias.id, o.id))
 }
 
-console.log(`Seed: ${casos.length} ocorrências, ${equipe.length} servidores. Login: ana@central.pb / central123`)
+const totalProfissionais = await db.$count(profissionais)
+console.log(`Seed: ${casos.length} ocorrências, ${equipe.length} servidores, ${totalProfissionais} profissionais. Login: ana@central.pb / central123`)
 await client.end()

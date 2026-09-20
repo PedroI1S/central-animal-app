@@ -18,6 +18,12 @@ export const CLASSE_PRIORIDADE: Record<Prioridade, string> = {
   4: 'bg-p4 text-slate-900',
 }
 
+/**
+ * autoFocus em celular abre o teclado na hora e empurra a conversa para fora da tela — e o cidadão
+ * chega aqui para ler a pergunta, não para digitar de imediato. Só com ponteiro fino (mouse/trackpad).
+ */
+export const FOCO_AUTOMATICO = window.matchMedia('(pointer: fine)').matches
+
 /** Aberto no próprio notebook (não pelo túnel): só aqui aparecem o atalho do painel e o login de teste. */
 export const ACESSO_LOCAL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
 
@@ -58,7 +64,12 @@ export function SeloStatus({ status }: { status: string }) {
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.classe}`}>{s.rotulo}</span>
 }
 
-export const rotuloCategoria = (c: Categoria) => `${EMOJI_CATEGORIA[c]} ${CATEGORIAS[c]}`
+/** Emoji é decoração: fica aria-hidden para o leitor de tela anunciar só o nome da categoria. */
+export const rotuloCategoria = (c: Categoria) => (
+  <>
+    <span aria-hidden="true">{EMOJI_CATEGORIA[c]}</span> {CATEGORIAS[c]}
+  </>
+)
 
 /** "sangramento" → "Sangramento intenso", usando os rótulos da própria árvore de perguntas. */
 export function rotuloResposta(pergunta: string, valor: string | string[]): string {
@@ -97,7 +108,7 @@ const LIGACOES_REAIS = import.meta.env.VITE_LIGACOES_REAIS === 'true'
 export function BotaoLigar({ servico }: { servico: Servico }) {
   const [aviso, setAviso] = useState(false)
   if (!servico.telefone) {
-    return <span className="text-xs text-slate-500">Contato a confirmar com a Prefeitura</span>
+    return <span className="text-xs text-slate-600">Contato a confirmar com a Prefeitura</span>
   }
   const classe = `inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold ${
     servico.emergencia ? 'bg-p1 text-white' : 'bg-marca-600 text-white'
@@ -105,23 +116,24 @@ export function BotaoLigar({ servico }: { servico: Servico }) {
   if (LIGACOES_REAIS) {
     return (
       <a href={`tel:${servico.telefone}`} className={classe}>
-        📞 Ligar {servico.telefone}
+        <span aria-hidden="true">📞</span> Ligar {servico.telefone}
       </a>
     )
   }
   return (
     <div className="flex flex-col items-end gap-1">
       <button type="button" onClick={() => setAviso(true)} className={classe}>
-        📞 Ligar {servico.telefone}
+        <span aria-hidden="true">📞</span> Ligar {servico.telefone}
       </button>
-      {aviso && <span className="max-w-48 text-right text-[11px] text-slate-500">Demonstração: na versão real, este botão liga para {servico.telefone}.</span>}
+      {aviso && <span role="status" className="max-w-48 text-right text-[11px] text-slate-600">Demonstração: na versão real, este botão liga para {servico.telefone}.</span>}
     </div>
   )
 }
 
+// slate-600, não slate-500: sobre o slate-100 do painel o 500 dá 4,35:1 e reprova.
 export function Carregando({ texto = 'Carregando…' }: { texto?: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 p-8 text-slate-500">
+    <div role="status" className="flex items-center justify-center gap-2 p-8 text-slate-600">
       <span className="size-4 animate-spin rounded-full border-2 border-slate-300 border-t-marca-600" />
       {texto}
     </div>

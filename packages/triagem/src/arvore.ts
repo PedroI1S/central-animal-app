@@ -51,6 +51,18 @@ export const PERGUNTAS: Record<string, Pergunta> = {
       { valor: 'avistado', rotulo: 'Só avistei, sem risco', emoji: '👀' },
     ],
   },
+  grupo_silvestre: {
+    id: 'grupo_silvestre',
+    texto: 'Dá para dizer que tipo de animal silvestre é?',
+    tipo: 'unica',
+    ajuda: 'Serve para acionar quem tem manejo daquele grupo — serpente e ave não são a mesma equipe.',
+    opcoes: [
+      { valor: 'serpente', rotulo: 'Cobra ou serpente', emoji: '🐍' },
+      { valor: 'ave', rotulo: 'Ave', emoji: '🦜' },
+      { valor: 'mamifero', rotulo: 'Mamífero (gambá, ouriço...)', emoji: '🦝' },
+      { valor: 'outro', rotulo: 'Outro / não sei', emoji: '❓' },
+    ],
+  },
   sinais: {
     id: 'sinais',
     texto: 'Você percebe algum destes sinais?',
@@ -96,6 +108,8 @@ const FLUXO: { id: string; quando: (r: Respostas) => boolean }[] = [
   { id: 'situacao', quando: (r) => r.tipo_animal !== 'silvestre' },
   { id: 'situacao_silvestre', quando: (r) => r.tipo_animal === 'silvestre' },
   { id: 'sinais', quando: (r) => COM_SINAIS.includes(r.situacao as string) || r.situacao_silvestre === 'ferido' },
+  // Depois dos sinais: numa capivara convulsionando, saber que convulsiona vale mais que saber o grupo.
+  { id: 'grupo_silvestre', quando: (r) => r.tipo_animal === 'silvestre' },
   { id: 'maus_tratos_agora', quando: (r) => r.situacao === 'maus_tratos' },
   { id: 'abandono_filhotes', quando: (r) => r.situacao === 'abandono' },
   { id: 'outros_animais', quando: (r) => r.situacao === 'envenenamento' },
@@ -110,6 +124,26 @@ export function proximaPergunta(r: Respostas): Pergunta | null {
 /** Perguntas relevantes para as respostas atuais — usado para a barra de progresso. */
 export function perguntasRelevantes(r: Respostas): Pergunta[] {
   return FLUXO.filter((p) => p.quando(r)).map((p) => PERGUNTAS[p.id])
+}
+
+/**
+ * Mantém só perguntas conhecidas com valores que existem nas opções. O servidor recebe as respostas do cliente
+ * (e as sugestões da IA): um valor inventado vira "sem resposta" e a triagem fica incompleta, em vez de derrubar a API.
+ */
+export function validarRespostas(r: Respostas): Respostas {
+  const limpas: Respostas = {}
+  for (const [id, valor] of Object.entries(r)) {
+    if (!Object.hasOwn(PERGUNTAS, id)) continue
+    const p = PERGUNTAS[id]
+    const validos = new Set(p.opcoes.map((o) => o.valor))
+    if (p.tipo === 'unica') {
+      if (typeof valor === 'string' && validos.has(valor)) limpas[id] = valor
+    } else {
+      const lista = [...new Set((Array.isArray(valor) ? valor : [valor]).filter((v) => validos.has(v)))]
+      if (lista.length) limpas[id] = lista
+    }
+  }
+  return limpas
 }
 
 /** Remove respostas que deixaram de ser relevantes (ex.: usuário voltou e mudou a situação). */

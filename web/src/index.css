@@ -20,9 +20,16 @@ body,
   height: 100%;
 }
 
+/* Sem tema escuro: declarar 'light' impede o Chrome de escurecer sozinho selects e inputs nativos. */
+html {
+  color-scheme: light;
+}
+
 body {
   @apply bg-slate-100 text-slate-900 antialiased;
   -webkit-tap-highlight-color: transparent;
+  /* Tira o atraso de ~300 ms que o navegador guarda esperando um duplo-toque. */
+  touch-action: manipulation;
 }
 
 @keyframes entrar {
@@ -50,6 +57,27 @@ body {
 }
 .destaque-novo {
   animation: pulso-novo 1.2s ease-in-out 4;
+}
+
+/* Quem pede menos movimento perde só o que é decorativo: entrada, pulso do "novo" e os pontinhos
+   de "digitando". O giro do spinner fica — é o único sinal de que algo está carregando. */
+@media (prefers-reduced-motion: reduce) {
+  .animar-entrada,
+  .destaque-novo,
+  .animate-bounce {
+    animation: none;
+  }
+  /* O destaque continua existindo, parado: anel fixo no lugar do pulso. */
+  .destaque-novo {
+    box-shadow: 0 0 0 3px rgb(20 184 166 / 0.6);
+  }
+}
+
+/* Fila longa: o navegador pula a renderização dos cartões fora da tela. O tamanho estimado
+   evita que a barra de rolagem pule. Resolve o caso de >50 casos sem trazer uma lib de virtualização. */
+.cartao-fila {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 132px;
 }
 
 .leaflet-container {

@@ -1,10 +1,11 @@
-import { PRIORIDADES, type Prioridade } from '@ca/triagem'
+import { classificar, necessidadesPara, PRIORIDADES, type Prioridade, type Respostas } from '@ca/triagem'
 import { asc, eq, inArray, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { conferirSenha, exigirServidor } from '../auth.ts'
+import { conferirSenha, exigirServidor, semLogin } from '../auth.ts'
 import { db, schema } from '../db/index.ts'
 import { registrarEvento, relacionadas, rotuloPrioridade, servicosDe } from '../ocorrencias.ts'
+import { porNecessidade, PRIORIDADE_MINIMA_PROFISSIONAL } from '../profissionais.ts'
 
 const { ocorrencias, eventos, anexos, servidores } = schema
 const ABERTAS = ['nova', 'em_atendimento', 'encaminhada']
@@ -39,7 +40,7 @@ export async function rotasPainel(app: FastifyInstance) {
     painel.get('/api/auth/eu', async (req, reply) => {
       const s = await servidorAtual(req.servidorId!)
       if (!s) return reply.code(401).send({ erro: 'Sessão inválida' })
-      return { id: s.id, nome: s.nome, setor: s.setor }
+      return { id: s.id, nome: s.nome, setor: s.setor, semLogin: semLogin(req) }
     })
 
     painel.get('/api/painel/servidores', async () =>
@@ -94,10 +95,19 @@ export async function rotasPainel(app: FastifyInstance) {
         .where(eq(ocorrencias.id, id))
       if (!o) return reply.code(404).send({ erro: 'Não encontrada' })
 
-      const [linha, fotos, proximas] = await Promise.all([
+      // Quem pode atender: só vale a pena para caso urgente e com local conhecido.
+      // A prioridade vem da linha (pode ter sido reclassificada à mão); a capacidade, das respostas.
+      const temLocal = o.o.lat != null && o.o.lng != null
+      const urgente = o.o.prioridade <= PRIORIDADE_MINIMA_PROFISSIONAL
+      const respostas = o.o.respostas as Respostas
+
+      const [linha, fotos, proximas, profissionais] = await Promise.all([
         db.select().from(eventos).where(eq(eventos.ocorrenciaId, id)).orderBy(asc(eventos.criadoEm)),
         db.select({ caminho: anexos.caminho }).from(anexos).where(eq(anexos.ocorrenciaId, id)),
-        o.o.lat != null && o.o.lng != null ? relacionadas(id, o.o.lat, o.o.lng) : Promise.resolve([]),
+        temLocal ? relacionadas(id, o.o.lat!, o.o.lng!) : Promise.resolve([]),
+        temLocal && urgente
+          ? porNecessidade(necessidadesPara(respostas, classificar(respostas)), o.o.lat!, o.o.lng!)
+          : Promise.resolve([]),
       ])
 
       return {
@@ -107,6 +117,7 @@ export async function rotasPainel(app: FastifyInstance) {
         fotos: fotos.map((f) => `/uploads/${f.caminho}`),
         eventos: linha,
         relacionadas: proximas,
+        frentes: profissionais,
       }
     })
 

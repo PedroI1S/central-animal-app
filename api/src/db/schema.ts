@@ -10,6 +10,24 @@ export const servidores = pgTable('servidores', {
   senhaHash: text('senha_hash').notNull(),
 })
 
+/**
+ * ⚠️ PLACEHOLDER — cadastro fictício, a pactuar com a Prefeitura (mesmo estado de `servicos.ts`).
+ * Separado de `servidores`: ali são logins do painel, aqui é quem atende em campo e em geral
+ * nem usa o app. `atende24h` + `observacao` são a simplificação de escala para o protótipo.
+ */
+export const profissionais = pgTable('profissionais', {
+  id: uuid().primaryKey().defaultRandom(),
+  nome: text().notNull(),
+  orgao: text().notNull(),
+  telefone: text(), // null = contato ainda a pactuar
+  lat: doublePrecision().notNull(),
+  lng: doublePrecision().notNull(),
+  capacidades: text().array().notNull(),
+  atende24h: boolean('atende_24h').notNull().default(false),
+  observacao: text(),
+  ativo: boolean().notNull().default(true),
+})
+
 export const ocorrencias = pgTable('ocorrencias', {
   id: uuid().primaryKey().defaultRandom(),
   protocolo: text().notNull().unique(),

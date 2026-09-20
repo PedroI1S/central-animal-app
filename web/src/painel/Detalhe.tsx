@@ -1,11 +1,11 @@
-import { PRIORIDADES, type Prioridade } from '@ca/triagem'
+import { CAPACIDADES, podarRespostas, PRIORIDADES, type Prioridade } from '@ca/triagem'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import L from 'leaflet'
 import { useState, type ReactNode } from 'react'
 import { AttributionControl, MapContainer, Marker, TileLayer } from 'react-leaflet'
 import { api, enviarJson } from '../api'
-import { ATRIBUICAO_OSM } from '../cidadao/MapaPino'
-import type { OcorrenciaDetalhe, Servidor } from '../tipos'
+import { ATRIBUICAO_OSM, RotuloMapa } from '../cidadao/MapaPino'
+import type { Frente, OcorrenciaDetalhe, Profissional, Servidor } from '../tipos'
 import { BotaoLigar, Carregando, Cartao, horario, rotuloCategoria, rotuloResposta, SeloPrioridade, SeloStatus, STATUS, tempoRelativo } from '../ui'
 
 const pino = L.divIcon({ html: '<div style="font-size:28px;line-height:1;transform:translate(-50%,-100%)">📍</div>', className: '', iconSize: [0, 0] })
@@ -56,9 +56,11 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
   if (isLoading || !o) return <Carregando />
 
   const aberta = !['encerrada', 'improcedente'].includes(o.status)
-  const divergencias = o.sugestaoIa
+  // Compara com a sugestão já podada pela árvore: o que a árvore descartou não é "correção do cidadão".
+  const sugerido = o.sugestaoIa ? podarRespostas({ pessoa_risco: String(o.respostas.pessoa_risco), ...o.sugestaoIa }) : null
+  const divergencias = sugerido
     ? Object.keys(ROTULO_PERGUNTA).filter(
-        (k) => o.sugestaoIa![k] !== undefined && JSON.stringify(o.sugestaoIa![k]) !== JSON.stringify(o.respostas[k]),
+        (k) => k !== 'pessoa_risco' && sugerido[k] !== undefined && JSON.stringify(sugerido[k]) !== JSON.stringify(o.respostas[k]),
       )
     : []
   const contato = o.anonimo ? 'Relato anônimo' : demo ? 'Contato informado (oculto no modo demo)' : `${o.contatoNome} · ${o.contatoTel}`
@@ -75,17 +77,18 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
           <div className="flex flex-wrap items-center gap-2">
             <SeloPrioridade p={o.prioridade} grande />
             <SeloStatus status={o.status} />
-            <span className="font-mono text-sm text-slate-500">{o.protocolo}</span>
+            <span className="font-mono text-sm text-slate-600">{o.protocolo}</span>
           </div>
-          <h2 className="mt-2 text-2xl font-bold">{rotuloCategoria(o.categoria)}</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="mt-2 text-2xl font-bold text-balance">{rotuloCategoria(o.categoria)}</h2>
+          {/* slate-600: este bloco fica sobre o fundo do painel (slate-100), onde o slate-500 dá 4,35:1. */}
+          <p className="text-sm text-slate-600">
             Registrada {tempoRelativo(o.criadoEm)} ({horario(o.criadoEm)}) · {o.responsavel ? `Responsável: ${o.responsavel}` : 'Sem responsável'}
           </p>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-600">
             {ROTA[o.rota] ?? o.rota} · {contato}
           </p>
         </div>
-        <button onClick={onFechar} aria-label="Fechar" className="hidden rounded-lg px-3 py-1 text-2xl text-slate-500 hover:bg-slate-100 lg:block">
+        <button onClick={onFechar} aria-label="Fechar" className="hidden rounded-lg px-3 py-1 text-2xl text-slate-600 hover:bg-slate-200 lg:block">
           ×
         </button>
       </div>
@@ -114,7 +117,7 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
       {o.relacionadas.length > 0 && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
           <p className="font-semibold text-amber-900">
-            ⚠️ {o.relacionadas.length} {o.relacionadas.length === 1 ? 'ocorrência anterior' : 'ocorrências anteriores'} a menos de 200 m nos últimos 90 dias
+            <span aria-hidden="true">⚠️</span> {o.relacionadas.length} {o.relacionadas.length === 1 ? 'ocorrência anterior' : 'ocorrências anteriores'} a menos de 200 m nos últimos 90 dias
           </p>
           <ul className="mt-2 space-y-1">
             {o.relacionadas.map((r) => (
@@ -158,7 +161,7 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
 
       {/* Duas colunas quando o painel tem espaço (não a janela); cartão ímpar no fim ocupa a linha inteira. */}
       <div className="grid grid-cols-1 gap-4 @2xl:grid-cols-2 @2xl:[&>:last-child:nth-child(odd)]:col-span-2">
-        <Cartao titulo="✨ Análise da IA (Qwen local)">
+        <Cartao titulo={<><span aria-hidden="true">✨</span> Análise da IA (Qwen local)</>}>
           {o.iaStatus === 'pendente' && (
             <p className="flex items-center gap-2 text-sm text-marca-700">
               <span className="size-4 animate-spin rounded-full border-2 border-marca-100 border-t-marca-600" /> Analisando relato e foto…
@@ -174,7 +177,11 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
               )}
             </Revelar>
           )}
-          {!o.resumoIa && !o.analiseFotoIa && o.iaStatus !== 'pendente' && <p className="text-sm text-slate-500">Sem relato livre nem foto para analisar.</p>}
+          {!o.resumoIa && !o.analiseFotoIa && o.iaStatus !== 'pendente' && (
+            <p className="text-sm text-slate-500">
+              {o.iaStatus === 'erro' ? 'A IA não conseguiu analisar agora. O relato original está logo abaixo.' : 'Sem relato livre nem foto para analisar.'}
+            </p>
+          )}
           {o.sugestaoIa && (
             <p className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500">
               {divergencias.length === 0
@@ -208,6 +215,7 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
             <MapContainer center={[o.lat, o.lng]} zoom={16} className="h-40 w-full rounded-lg" attributionControl={false} scrollWheelZoom={false}>
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution={ATRIBUICAO_OSM} />
               <AttributionControl prefix={false} />
+              <RotuloMapa rotulo="Mapa com o local da ocorrência." />
               <Marker position={[o.lat, o.lng]} icon={pino} />
             </MapContainer>
           )}
@@ -228,7 +236,7 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
               <div className="flex gap-2 overflow-x-auto">
                 {o.fotos.map((f) => (
                   <a key={f} href={f} target="_blank" rel="noreferrer" className="shrink-0">
-                    <img src={f} alt="Foto da ocorrência" className="h-40 rounded-lg object-cover" />
+                    <img src={f} alt="Foto da ocorrência" width={640} height={480} loading="lazy" className="h-40 rounded-lg object-cover" />
                   </a>
                 ))}
               </div>
@@ -236,6 +244,19 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
           </Cartao>
         )}
       </div>
+
+      {o.frentes.length > 0 && (
+        <Cartao titulo="Quem pode atender">
+          <div className="space-y-4">
+            {o.frentes.map((f) => (
+              <FrenteAtendimento key={f.id} f={f} />
+            ))}
+          </div>
+          <p className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500">
+            Ordenado por competência e distância em linha reta · cadastro de demonstração
+          </p>
+        </Cartao>
+      )}
 
       <Cartao titulo="Encaminhamento">
         <ul className="divide-y divide-slate-100">
@@ -258,7 +279,8 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
               <span className="absolute top-1.5 -left-[21px] size-2.5 rounded-full bg-marca-600" />
               <p className="text-sm">{e.texto}</p>
               <p className="text-xs text-slate-500">
-                {horario(e.criadoEm)} · {e.autor} {e.visivelCidadao ? '· 👁 visível ao cidadão' : '· 🔒 interno'}
+                {horario(e.criadoEm)} · {e.autor} · <span aria-hidden="true">{e.visivelCidadao ? '👁' : '🔒'}</span>{' '}
+                {e.visivelCidadao ? 'visível ao cidadão' : 'interno'}
               </p>
             </li>
           ))}
@@ -301,7 +323,8 @@ function Acoes(props: {
               value={o.responsavelId ?? ''}
               disabled={props.ocupado}
               onChange={(e) => e.target.value && props.onAcao({ acao: 'atribuir', responsavelId: e.target.value })}
-              className="max-w-full rounded-lg border border-slate-300 px-3 py-2"
+              aria-label="Responsável pela ocorrência"
+              className="max-w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
             >
               <option value="">Atribuir a…</option>
               {props.servidores.map((s) => (
@@ -371,7 +394,12 @@ function Acoes(props: {
 
         {modo === 'reclassificar' && (
           <Linha rotulo="Nova prioridade">
-            <select value={novaP} onChange={(e) => setNovaP(Number(e.target.value) as Prioridade)} className="rounded-lg border border-slate-300 px-3 py-2">
+            <select
+              value={novaP}
+              onChange={(e) => setNovaP(Number(e.target.value) as Prioridade)}
+              aria-label="Nova prioridade"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+            >
               {([1, 2, 3, 4] as const).map((p) => (
                 <option key={p} value={p}>
                   P{p} · {PRIORIDADES[p].rotulo}
@@ -381,7 +409,8 @@ function Acoes(props: {
             <input
               value={justificativa}
               onChange={(e) => setJustificativa(e.target.value)}
-              placeholder="Justificativa (obrigatória)"
+              aria-label="Justificativa da reclassificação"
+              placeholder="Por que muda de prioridade…"
               className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2"
             />
             <button
@@ -404,7 +433,8 @@ function Acoes(props: {
               value={desfecho}
               onChange={(e) => setDesfecho(e.target.value)}
               rows={2}
-              placeholder="Desfecho (obrigatório) — ex.: Animal atendido e encaminhado para adoção."
+              aria-label="Desfecho da ocorrência"
+              placeholder="Ex.: Animal atendido e encaminhado para adoção…"
               className="w-full rounded-lg border border-slate-300 px-3 py-2"
             />
             <div className="flex flex-wrap items-center gap-3">
@@ -422,9 +452,64 @@ function Acoes(props: {
           </div>
         )}
 
-        {props.erro && <p className="text-sm text-red-600">{props.erro}</p>}
+        {props.erro && <p role="alert" className="text-sm text-red-600">{props.erro}</p>}
       </div>
     </Cartao>
+  )
+}
+
+/** Uma frente do caso. A da pessoa vem primeiro e marcada: é a que não pode ser lida por último. */
+function FrenteAtendimento({ f }: { f: Frente }) {
+  const pessoa = f.id === 'pessoa'
+  return (
+    <section>
+      <h4 className={`text-xs font-semibold tracking-wide uppercase ${pessoa ? 'text-p1' : 'text-slate-500'}`}>
+        {pessoa && <span aria-hidden="true">▲ </span>}
+        {f.rotulo}
+      </h4>
+      <ul className="divide-y divide-slate-100">
+        {f.opcoes.map((p) => (
+          <li key={p.id}>
+            <LinhaProfissional p={p} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** 1,2 km acima de 1 km; 840 m abaixo. Em metro cheio: ninguém precisa de 843 m. */
+function distancia(m: number) {
+  return m >= 1000 ? `${(m / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : `${Math.round(m / 10) * 10} m`
+}
+
+/** Uma opção de atendimento: quem é, o que cobre, a que distância e como acionar. */
+function LinhaProfissional({ p }: { p: Profissional }) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-2.5">
+      <div className="min-w-0">
+        <p className="font-medium">
+          {p.nome}
+          {p.atende24h && <span className="ml-2 rounded bg-marca-50 px-1.5 py-0.5 text-[11px] font-semibold text-marca-700">24h</span>}
+        </p>
+        <p className="text-xs text-slate-500">
+          {p.orgao} · {distancia(p.distancia)}
+        </p>
+        <div className="mt-1 flex flex-wrap gap-1">
+          {p.atendidas.map((c) => (
+            <span key={c} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+              {CAPACIDADES[c]}
+            </span>
+          ))}
+          {/* Cobre parte do que o caso exige: o operador precisa saber antes de ligar. */}
+          {!p.cobreTudo && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">cobre em parte</span>}
+        </div>
+        {p.observacao && <p className="mt-1 text-xs text-slate-500">{p.observacao}</p>}
+      </div>
+      <div className="shrink-0">
+        <BotaoLigar servico={{ id: p.id, nome: p.nome, orgao: p.orgao, telefone: p.telefone }} />
+      </div>
+    </div>
   )
 }
 

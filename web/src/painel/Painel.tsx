@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 import { api, enviarJson, ErroApi } from '../api'
 import type { ItemFila, Servidor, Stats } from '../tipos'
@@ -45,10 +45,33 @@ export default function Painel() {
   const qc = useQueryClient()
   const eu = useQuery({ queryKey: ['eu'], queryFn: () => api<Servidor>('/api/auth/eu'), retry: false })
 
-  if (eu.isLoading) return <Carregando />
+  // As telas de espera e de erro também precisam de landmark e de h1: sem isso, enquanto o painel
+  // carrega a página inteira fica sem estrutura para quem navega por marcos.
+  if (eu.isLoading) return <Espera />
+  // Com PAINEL_SEM_LOGIN (api/src/auth.ts) a API não responde 401 e esta tela não aparece.
   if (eu.error instanceof ErroApi && eu.error.status === 401) return <Login onEntrar={() => qc.invalidateQueries({ queryKey: ['eu'] })} />
-  if (!eu.data) return <Carregando texto="Conectando…" />
+  if (eu.error)
+    return (
+      <Espera>
+        <p role="alert" className="p-6 text-center text-slate-600">
+          {eu.error.message}
+        </p>
+      </Espera>
+    )
+  if (!eu.data) return <Espera texto="Conectando…" />
   return <Area eu={eu.data} />
+}
+
+/** Casca mínima das telas de espera/erro do painel: um main e um h1 para leitores de tela. */
+function Espera({ texto, children }: { texto?: string; children?: ReactNode }) {
+  return (
+    <main className="grid h-full place-items-center">
+      <div>
+        <h1 className="sr-only">Painel do servidor — Central Animal</h1>
+        {children ?? <Carregando texto={texto} />}
+      </div>
+    </main>
+  )
 }
 
 function Area({ eu }: { eu: Servidor }) {
@@ -108,10 +131,15 @@ function Area({ eu }: { eu: Servidor }) {
   const listaFila = (
     <>
       <div className="flex items-center justify-between px-4 py-2 text-sm">
-        <span className="font-semibold text-slate-600">
+        <span role="status" className="font-semibold text-slate-600">
           {itens.length} {filtro === 'abertas' ? 'abertas' : 'no total'}
         </span>
-        <select value={filtro} onChange={(e) => setFiltro(e.target.value as 'abertas' | 'todas')} className="rounded border border-slate-300 bg-white px-2 py-1">
+        <select
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value as 'abertas' | 'todas')}
+          aria-label="Filtrar ocorrências"
+          className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-900"
+        >
           <option value="abertas">Abertas</option>
           <option value="todas">Todas</option>
         </select>
@@ -119,7 +147,7 @@ function Area({ eu }: { eu: Servidor }) {
       <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-4">
         {fila.isLoading && <Carregando />}
         {itens.map((o) => (
-          <li key={o.id}>
+          <li key={o.id} className="cartao-fila">
             <CartaoFila o={o} ativo={o.id === selecionado} novo={novos.has(o.id)} demo={demo} agora={agora} onClick={() => abrir(o.id)} />
           </li>
         ))}
@@ -136,7 +164,7 @@ function Area({ eu }: { eu: Servidor }) {
           <div className="flex shrink-0 items-center gap-2">
             <Pata className="size-7 text-marca-500" />
             <div className="leading-tight whitespace-nowrap">
-              <div className="font-bold">Central Animal</div>
+              <h1 className="font-bold">Central Animal</h1>
               <div className="hidden text-xs text-slate-400 sm:block">Painel do servidor</div>
             </div>
           </div>
@@ -167,9 +195,11 @@ function Area({ eu }: { eu: Servidor }) {
               </button>
             )}
             <span className="hidden text-slate-400 xl:inline">{eu.nome}</span>
-            <button onClick={sair} className="px-1 py-2 text-slate-400 hover:text-white">
-              Sair
-            </button>
+            {!eu.semLogin && (
+              <button onClick={sair} className="px-1 py-2 text-slate-400 hover:text-white">
+                Sair
+              </button>
+            )}
           </div>
         </div>
         {!larga && <Indicadores stats={stats.data} compacto />}
@@ -177,23 +207,23 @@ function Area({ eu }: { eu: Servidor }) {
 
       {larga ? (
         <div className="flex min-h-0 flex-1">
-          <aside className="flex w-[380px] shrink-0 flex-col border-r border-slate-200 bg-slate-50 xl:w-[440px]">{listaFila}</aside>
+          <aside aria-label="Fila de ocorrências" className="flex w-[380px] shrink-0 flex-col border-r border-slate-200 bg-slate-50 xl:w-[440px]">{listaFila}</aside>
           {/* Sem caso aberto, o espaço é do mapa ao vivo; no modo demo, com o QR por cima. */}
-          <section className="@container relative min-w-0 flex-1 overflow-y-auto">
+          <main className="@container relative min-w-0 flex-1 overflow-y-auto">
             {detalhe || (
               <>
                 {mapa}
                 {demo && <CartaoQr />}
               </>
             )}
-          </section>
+          </main>
         </div>
       ) : detalhe ? (
-        <section className="@container min-h-0 flex-1 overflow-y-auto">{detalhe}</section>
+        <main className="@container min-h-0 flex-1 overflow-y-auto">{detalhe}</main>
       ) : vista === 'mapa' ? (
-        <section className="min-h-0 flex-1">{mapa}</section>
+        <main className="min-h-0 flex-1">{mapa}</main>
       ) : (
-        <section className="flex min-h-0 flex-1 flex-col bg-slate-50">{listaFila}</section>
+        <main className="flex min-h-0 flex-1 flex-col bg-slate-50">{listaFila}</main>
       )}
     </div>
   )
@@ -206,6 +236,8 @@ function Indicadores({ stats, compacto = false }: { stats?: Stats; compacto?: bo
     { valor: stats?.hoje, rotulo: 'hoje', cor: 'bg-white/10' },
     { valor: stats?.encerradasHoje, rotulo: 'encerradas hoje', cor: 'bg-white/10' },
   ]
+  // Sem opacity no rótulo: sobre o bg-p1 ela derrubava o contraste para 3,53:1 (mesmo caso anotado
+  // em Acompanhar.tsx). O tamanho e o peso já separam número de rótulo.
   // No celular os quatro viram uma grade embaixo do cabeçalho: número em cima, rótulo embaixo.
   if (compacto)
     return (
@@ -213,7 +245,7 @@ function Indicadores({ stats, compacto = false }: { stats?: Stats; compacto?: bo
         {itens.map((i) => (
           <div key={i.rotulo} className={`rounded-lg px-1 py-1.5 text-center ${i.cor}`}>
             <div className="text-lg leading-none font-bold tabular-nums">{i.valor ?? '–'}</div>
-            <div className="mt-1 text-[11px] leading-tight opacity-80">{i.rotulo}</div>
+            <div className="mt-1 text-[11px] leading-tight">{i.rotulo}</div>
           </div>
         ))}
       </div>
@@ -222,7 +254,7 @@ function Indicadores({ stats, compacto = false }: { stats?: Stats; compacto?: bo
     <div className="ml-2 flex gap-2">
       {itens.map((i) => (
         <div key={i.rotulo} className={`rounded-lg px-3 py-1 whitespace-nowrap ${i.cor}`}>
-          <span className="text-lg font-bold tabular-nums">{i.valor ?? '–'}</span> <span className="text-xs opacity-80">{i.rotulo}</span>
+          <span className="text-lg font-bold tabular-nums">{i.valor ?? '–'}</span> <span className="text-xs">{i.rotulo}</span>
         </div>
       ))}
     </div>
@@ -274,8 +306,10 @@ function CartaoFila({ o, ativo, novo, demo, agora, onClick }: { o: ItemFila; ati
             texto && <p className="line-clamp-2 text-sm text-slate-700">{o.resumoIa && '✨ '}{texto}</p>
           )}
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span className="truncate">📍 {local}</span>
-            {o.fotos > 0 && <span>📷</span>}
+            <span className="truncate">
+              <span aria-hidden="true">📍</span> {local}
+            </span>
+            {o.fotos > 0 && <span title="Tem foto" aria-label="Tem foto">📷</span>}
             <span className="ml-auto shrink-0">{o.responsavel ?? <span className="font-semibold text-slate-900">Sem responsável</span>}</span>
             <SeloStatus status={o.status} />
           </div>

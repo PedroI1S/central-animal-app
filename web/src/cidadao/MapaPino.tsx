@@ -9,6 +9,20 @@ export const ATRIBUICAO_OSM = '&copy; <a href="https://www.openstreetmap.org/cop
 
 const pino = L.divIcon({ html: '<div style="font-size:34px;line-height:1;transform:translate(-50%,-100%)">📍</div>', className: '', iconSize: [0, 0] })
 
+/**
+ * react-leaflet não repassa role/aria-label para o contêiner, e o Leaflet põe tabindex=0 nele
+ * (as setas do teclado movem o mapa): sem papel, é um div focável sem significado.
+ */
+export function RotuloMapa({ rotulo }: { rotulo: string }) {
+  const mapa = useMap()
+  useEffect(() => {
+    const el = mapa.getContainer()
+    el.setAttribute('role', 'application')
+    el.setAttribute('aria-label', rotulo)
+  }, [mapa, rotulo])
+  return null
+}
+
 function Controle({ pos, onChange }: { pos: [number, number] | null; onChange: (p: [number, number]) => void }) {
   const mapa = useMap()
   useEffect(() => {
@@ -18,11 +32,18 @@ function Controle({ pos, onChange }: { pos: [number, number] | null; onChange: (
   return null
 }
 
+/** Apontar no mapa não é o único caminho: o campo de endereço ao lado resolve sem gesto. */
 export default function MapaPino({ pos, onChange }: { pos: [number, number] | null; onChange: (p: [number, number]) => void }) {
   return (
-    <MapContainer center={pos ?? PATO_BRANCO} zoom={pos ? 16 : 14} className="h-52 w-full rounded-xl" attributionControl={false}>
+    <MapContainer
+      center={pos ?? PATO_BRANCO}
+      zoom={pos ? 16 : 14}
+      className="h-52 w-full rounded-xl"
+      attributionControl={false}
+    >
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution={ATRIBUICAO_OSM} />
       <AttributionControl prefix={false} />
+      <RotuloMapa rotulo="Mapa de Pato Branco: toque para marcar o local, ou escreva o endereço no campo abaixo." />
       <Controle pos={pos} onChange={onChange} />
       {pos && (
         <Marker

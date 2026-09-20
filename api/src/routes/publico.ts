@@ -1,4 +1,4 @@
-import { classificar, podarRespostas, proximaPergunta, CATEGORIAS } from '@ca/triagem'
+import { classificar, podarRespostas, proximaPergunta, validarRespostas, CATEGORIAS } from '@ca/triagem'
 import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -7,16 +7,17 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { db, schema } from '../db/index.ts'
 import { interpretarRelato } from '../llm.ts'
-import { enriquecerComIa, registrarEvento, rotuloPrioridade, servicosDe } from '../ocorrencias.ts'
+import { enriquecerComIa, PASTA_UPLOADS, registrarEvento, rotuloPrioridade, servicosDe } from '../ocorrencias.ts'
 
 const { ocorrencias, eventos, anexos } = schema
 
-export const PASTA_UPLOADS = join(import.meta.dirname, '../../uploads')
+export { PASTA_UPLOADS }
 
 const Dados = z.object({
   respostas: z.record(z.string(), z.union([z.string(), z.array(z.string())])),
   sugestaoIa: z.record(z.string(), z.union([z.string(), z.array(z.string())])).nullish(),
-  relato: z.string().max(2000).nullish(),
+  // Relato + a conversa com a IA (perguntas de esclarecimento e respostas), para a equipe ver o que foi perguntado.
+  relato: z.string().max(3000).nullish(),
   lat: z.number().min(-90).max(90).nullish(),
   lng: z.number().min(-180).max(180).nullish(),
   endereco: z.string().max(300).nullish(),
@@ -29,10 +30,18 @@ const EXTENSOES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'p
 
 export async function rotasPublicas(app: FastifyInstance) {
   // Limites por IP generosos: a plateia inteira no Wi-Fi do evento sai pelo mesmo IP público.
+  const Interpretar = z.object({
+    texto: z.string().min(3).max(1000),
+    // Perguntas que a Central já fez nesta conversa e o que o cidadão respondeu (esclarecimentos e correções).
+    conversa: z.array(z.object({ pergunta: z.string().max(300), resposta: z.string().min(1).max(300) })).max(6).default([]),
+    // O chat ainda aceita uma pergunta de esclarecimento? (limite de rodadas controlado pelo chat)
+    perguntar: z.boolean().default(false),
+  })
+
   app.post('/api/triagem/interpretar', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (req) => {
-    const { texto } = z.object({ texto: z.string().min(3).max(1000) }).parse(req.body)
-    const sugestao = await interpretarRelato(texto)
-    return { ok: sugestao !== null, sugestao }
+    const { texto, conversa, perguntar } = Interpretar.parse(req.body)
+    const r = await interpretarRelato({ relato: texto, conversa, perguntar })
+    return r ? { ok: true, ...r } : { ok: false, sugestao: null }
   })
 
   app.post('/api/ocorrencias', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req, reply) => {
@@ -50,7 +59,8 @@ export async function rotasPublicas(app: FastifyInstance) {
     }
 
     const dados = Dados.parse(dadosBrutos)
-    const respostas = podarRespostas(dados.respostas)
+    // Valor fora das opções (cliente adulterado, sugestão da IA estranha) vira "sem resposta" → triagem incompleta (400).
+    const respostas = podarRespostas(validarRespostas(dados.respostas))
     if (proximaPergunta(respostas)) return reply.code(400).send({ erro: 'Triagem incompleta' })
 
     // A prioridade é SEMPRE recalculada aqui — o cliente não define a própria prioridade.
@@ -75,6 +85,8 @@ export async function rotasPublicas(app: FastifyInstance) {
         anonimo: dados.anonimo,
         contatoNome: dados.anonimo ? null : dados.contatoNome || null,
         contatoTel: dados.anonimo ? null : dados.contatoTel || null,
+        // Já nasce "pendente": o painel mostra "IA analisando…" desde a primeira consulta.
+        iaStatus: dados.relato || foto ? 'pendente' : null,
       })
       .returning({ id: ocorrencias.id, protocolo: ocorrencias.protocolo })
 
@@ -92,7 +104,7 @@ export async function rotasPublicas(app: FastifyInstance) {
       'Central Animal',
       `Ocorrência registrada: ${CATEGORIAS[r.categoria]} — prioridade ${rotuloPrioridade(r.prioridade)}.`,
     )
-    enriquecerComIa(criada.id, dados.relato || null, r.categoria, r.motivos, caminhoFoto)
+    enriquecerComIa(criada.id, dados.relato || null, r.categoria, r.motivos, caminhoFoto, (m) => req.log.warn(m))
 
     return { protocolo: criada.protocolo }
   })

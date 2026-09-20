@@ -6,7 +6,8 @@ import Fastify, { type FastifyError } from 'fastify'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { ZodError } from 'zod'
-import { aquecer } from './llm.ts'
+import { aquecer, definirLog } from './llm.ts'
+import { retomarAnalisesPendentes } from './ocorrencias.ts'
 import { rotasPainel } from './routes/painel.ts'
 import { PASTA_UPLOADS, rotasPublicas } from './routes/publico.ts'
 
@@ -42,5 +43,6 @@ if (existsSync(DIST)) {
   )
 }
 
+definirLog((m) => app.log.info(m))
 await app.listen({ port: Number(process.env.PORT ?? 3000), host: '0.0.0.0' })
-void aquecer((m) => app.log.info(m))
+void aquecer((m) => app.log.info(m)).then(() => retomarAnalisesPendentes((m) => app.log.warn(m)).catch((e) => app.log.error(e)))

@@ -31,8 +31,10 @@ export function classificar(r: Respostas): Resultado {
     motivos.push(motivo)
   }
 
+  const situacao = r.situacao as Categoria | undefined
+  // Categoria desconhecida vira "outro" em vez de derrubar a classificação (ORIENTACOES[x] indefinido).
   const categoria: Categoria =
-    r.tipo_animal === 'silvestre' ? 'silvestre' : ((r.situacao as Categoria) ?? 'outro')
+    r.tipo_animal === 'silvestre' ? 'silvestre' : situacao && Object.hasOwn(ORIENTACOES, situacao) ? situacao : 'outro'
 
   if (r.pessoa_risco === 'sim') {
     subir(1, 'Pessoa em risco')

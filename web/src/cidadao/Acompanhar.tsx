@@ -47,7 +47,7 @@ export default function Acompanhar() {
     return (
       <Casca>
         <div className="p-6 text-center">
-          <p className="text-lg font-semibold">{inexistente ? 'Protocolo não encontrado' : 'Não foi possível carregar'}</p>
+          <h1 className="text-lg font-semibold text-balance">{inexistente ? 'Protocolo não encontrado' : 'Não foi possível carregar'}</h1>
           <Link to="/acompanhar" className="mt-4 inline-block text-marca-700 underline">
             Tentar outro protocolo
           </Link>
@@ -63,9 +63,13 @@ export default function Acompanhar() {
     <Casca>
       {/* Sem opacity no texto: sobre a cor da prioridade ela derrubava o contraste abaixo de 4,5:1. */}
       <section className={`px-5 pt-6 pb-5 ${CLASSE_PRIORIDADE[o.prioridade]}`}>
-        {novo && <p className="mb-2 text-sm font-semibold">✓ Ocorrência registrada</p>}
+        {novo && (
+          <p className="mb-2 text-sm font-semibold">
+            <span aria-hidden="true">✓</span> Ocorrência registrada
+          </p>
+        )}
         <p className="text-sm">Prioridade</p>
-        <p className="text-3xl font-bold">{p.rotulo}</p>
+        <h1 className="text-3xl font-bold text-balance">{p.rotulo}</h1>
         <p className="mt-0.5 font-medium">{p.prazo}</p>
         <p className="mt-3 text-sm">{o.motivos.join(' · ')}</p>
       </section>
@@ -76,9 +80,7 @@ export default function Acompanhar() {
             <p className="text-xs text-slate-500">Protocolo</p>
             <p className="font-mono text-lg font-bold tracking-wide">{o.protocolo}</p>
           </div>
-          <button onClick={() => navigator.clipboard?.writeText(o.protocolo)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm">
-            Copiar
-          </button>
+          <BotaoCopiar protocolo={o.protocolo} />
         </div>
 
         {!encerrada && (
@@ -87,7 +89,7 @@ export default function Acompanhar() {
             <ul className="mt-2 space-y-2">
               {o.orientacoes.map((t) => (
                 <li key={t} className="flex gap-2 text-[15px] leading-snug">
-                  <span className="text-marca-600">●</span>
+                  <span aria-hidden="true" className="text-marca-600">●</span>
                   {t}
                 </li>
               ))}
@@ -117,7 +119,7 @@ export default function Acompanhar() {
             <SeloStatus status={o.status} />
           </div>
           <p className="mt-1 text-xs text-slate-500">{rotuloCategoria(o.categoria)} · atualiza automaticamente</p>
-          <ol className="mt-4 space-y-4 border-l-2 border-slate-200 pl-4">
+          <ol aria-live="polite" className="mt-4 space-y-4 border-l-2 border-slate-200 pl-4">
             {o.eventos.map((e, i) => (
               <li key={i} className={`relative ${i === destaque ? 'animar-entrada' : ''}`}>
                 <span
@@ -132,7 +134,7 @@ export default function Acompanhar() {
           </ol>
         </section>
 
-        <Link to="/" className="block py-2 text-center text-sm text-slate-500">
+        <Link to="/" className="block py-2 text-center text-sm text-slate-600">
           Voltar ao início
         </Link>
       </div>
@@ -151,11 +153,13 @@ export function BuscarProtocolo() {
   return (
     <Casca>
       <form onSubmit={enviar} className="space-y-3 p-5">
-        <h1 className="text-xl font-bold">Acompanhar ocorrência</h1>
+        <h1 className="text-xl font-bold text-balance">Acompanhar ocorrência</h1>
         <input
           value={valor}
           onChange={(e) => setValor(e.target.value)}
-          placeholder="CA-2026-000123"
+          aria-label="Número do protocolo"
+          spellCheck={false}
+          placeholder="Ex.: CA-2026-000123"
           autoCapitalize="characters"
           className="w-full rounded-xl border border-slate-300 p-3 font-mono text-lg uppercase"
         />
@@ -172,6 +176,23 @@ export function BuscarProtocolo() {
         )}
       </form>
     </Casca>
+  )
+}
+
+/** Copiar sem retorno visual deixa a dúvida "copiou?"; o rótulo confirma e o role=status anuncia. */
+function BotaoCopiar({ protocolo }: { protocolo: string }) {
+  const [copiado, setCopiado] = useState(false)
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard?.writeText(protocolo)
+        setCopiado(true)
+        setTimeout(() => setCopiado(false), 2500)
+      }}
+      className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+    >
+      <span role="status">{copiado ? '✓ Copiado' : 'Copiar'}</span>
+    </button>
   )
 }
 

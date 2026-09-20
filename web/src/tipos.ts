@@ -1,4 +1,4 @@
-import type { Categoria, Prioridade, Servico } from '@ca/triagem'
+import type { Capacidade, Categoria, Prioridade, Servico } from '@ca/triagem'
 
 export interface EventoPublico {
   tipo: string
@@ -57,6 +57,28 @@ export interface Relacionada {
   distancia: number
 }
 
+/** Uma frente do caso (a pessoa, o animal) com quem pode atendê-la. */
+export interface Frente {
+  id: string
+  rotulo: string
+  capacidades: Capacidade[]
+  opcoes: Profissional[]
+}
+
+/** Quem pode atender este caso — só vem em ocorrência urgente e com local conhecido. */
+export interface Profissional {
+  id: string
+  nome: string
+  orgao: string
+  telefone: string | null
+  /** Metros em linha reta. */
+  distancia: number
+  atende24h: boolean
+  observacao: string | null
+  atendidas: Capacidade[]
+  cobreTudo: boolean
+}
+
 export interface OcorrenciaDetalhe extends Omit<ItemFila, 'fotos'> {
   respostas: Record<string, string | string[]>
   sugestaoIa: Record<string, string | string[]> | null
@@ -71,12 +93,15 @@ export interface OcorrenciaDetalhe extends Omit<ItemFila, 'fotos'> {
   fotos: string[]
   eventos: Evento[]
   relacionadas: Relacionada[]
+  frentes: Frente[]
 }
 
 export interface Servidor {
   id: string
   nome: string
   setor: string
+  /** API com PAINEL_SEM_LOGIN: não há sessão para encerrar. */
+  semLogin?: boolean
 }
 
 export interface Stats {
