@@ -37,11 +37,15 @@ export function capacidadesPara(r: Respostas, res: Resultado): Capacidade[] {
     return ['resgate_fauna']
   }
 
-  if (res.categoria === 'morto_via') return ['remocao']
+  // Cavalo ou boi muda quem atende e quem remove: nem toda clínica tem contenção para grande porte,
+  // nem toda equipe de remoção tem como retirar uma carcaça desse tamanho.
+  const grande = r.grupo_domestico === 'grande_porte'
+
+  if (res.categoria === 'morto_via') return grande ? ['remocao', 'grande_porte'] : ['remocao']
 
   // Maus-tratos entram aqui porque a denúncia precisa de exame e laudo veterinário para seguir.
   if (['atropelamento', 'ferido', 'envenenamento', 'maus_tratos'].includes(res.categoria)) {
-    return ['clinica_veterinaria']
+    return grande ? ['clinica_veterinaria', 'grande_porte'] : ['clinica_veterinaria']
   }
 
   return []

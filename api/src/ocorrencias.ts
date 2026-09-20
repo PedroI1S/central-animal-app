@@ -58,6 +58,8 @@ export function enriquecerComIa(
   categoria: string,
   motivos: string[],
   foto: string | null,
+  /** A foto é analisada com o caso em volta: sozinha ela não sabe que alguém foi picado. */
+  pessoaFerida: boolean,
   log: (msg: string) => void = console.warn,
 ) {
   if (!relato && !foto) return
@@ -77,7 +79,7 @@ export function enriquecerComIa(
     }
     if (foto) {
       try {
-        const analise = textoSeguro(await analisarFoto(foto)) ?? 'Foto recebida; descrição automática omitida.'
+        const analise = textoSeguro(await analisarFoto(foto, { relato, pessoaFerida })) ?? 'Foto recebida; descrição automática omitida.'
         await db.update(ocorrencias).set({ analiseFotoIa: analise }).where(eq(ocorrencias.id, id))
       } catch (e) {
         log(`IA: análise de foto falhou — ${(e as Error).message}`)
@@ -94,12 +96,19 @@ export function enriquecerComIa(
  */
 export async function retomarAnalisesPendentes(log: (msg: string) => void) {
   const pendentes = await db
-    .select({ id: ocorrencias.id, relato: ocorrencias.relato, categoria: ocorrencias.categoria, motivos: ocorrencias.motivos, foto: anexos.caminho })
+    .select({
+      id: ocorrencias.id,
+      relato: ocorrencias.relato,
+      categoria: ocorrencias.categoria,
+      motivos: ocorrencias.motivos,
+      rota: ocorrencias.rota,
+      foto: anexos.caminho,
+    })
     .from(ocorrencias)
     .leftJoin(anexos, eq(anexos.ocorrenciaId, ocorrencias.id))
     .where(eq(ocorrencias.iaStatus, 'pendente'))
   for (const p of pendentes) {
-    enriquecerComIa(p.id, p.relato, p.categoria, p.motivos, p.foto ? join(PASTA_UPLOADS, p.foto) : null, log)
+    enriquecerComIa(p.id, p.relato, p.categoria, p.motivos, p.foto ? join(PASTA_UPLOADS, p.foto) : null, p.rota === 'humana', log)
   }
   if (pendentes.length) log(`IA: ${pendentes.length} análise(s) pendente(s) retomada(s)`)
 }

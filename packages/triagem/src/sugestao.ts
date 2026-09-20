@@ -12,6 +12,12 @@ export const CASOS_IA = [
 
 export const SINAIS_IA = ['sangramento', 'respiracao', 'inconsciente', 'convulsao', 'nao_levanta', 'vomito'] as const
 
+/** Grupo do animal, quando o texto deixa claro. Vale para os dois lados da árvore. */
+export const GRUPOS_IA = ['cao', 'gato', 'grande_porte', 'serpente', 'ave', 'mamifero', 'outro'] as const
+
+const GRUPO_SILVESTRE: Record<string, string> = { serpente: 'serpente', ave: 'ave', mamifero: 'mamifero' }
+const GRUPO_DOMESTICO: Record<string, string> = { cao: 'cao', gato: 'gato', grande_porte: 'grande_porte' }
+
 const SILVESTRE: Record<string, string> = {
   silvestre_perto_de_pessoas: 'ameaca',
   silvestre_ferido: 'ferido',
@@ -42,7 +48,7 @@ export interface Sugestao {
  * `textoCidadao` é só o que o cidadão escreveu (relato + respostas dele), nunca as perguntas da IA:
  * senão "Ele está sangrando?" viraria sangramento.
  */
-export function montarSugestao(casoIa: string, sinaisIa: readonly string[], textoCidadao: string): Sugestao {
+export function montarSugestao(casoIa: string, sinaisIa: readonly string[], textoCidadao: string, grupoIa = ''): Sugestao {
   const escritos = detectarSinais(textoCidadao)
   const sinais = [...new Set([...sinaisIa.filter((s) => (SINAIS_IA as readonly string[]).includes(s)), ...escritos])]
   const casoValido = (CASOS_IA as readonly string[]).includes(casoIa) ? casoIa : 'outro'
@@ -65,9 +71,13 @@ export function montarSugestao(casoIa: string, sinaisIa: readonly string[], text
   if (SILVESTRE[caso]) {
     r.tipo_animal = 'silvestre'
     r.situacao_silvestre = SILVESTRE[caso]
+    // Grupo só entra se combinar com o lado da árvore: "cão" num caso silvestre é contradição,
+    // e aí é melhor não sugerir nada — o chat pergunta.
+    if (GRUPO_SILVESTRE[grupoIa]) r.grupo_silvestre = GRUPO_SILVESTRE[grupoIa]
   } else {
     r.tipo_animal = 'domestico'
     r.situacao = caso
+    if (GRUPO_DOMESTICO[grupoIa]) r.grupo_domestico = GRUPO_DOMESTICO[grupoIa]
   }
 
   // Sinal escrito com todas as letras vale direto. Sinal que só a IA viu ("sarna" não é sangramento) o cidadão

@@ -63,6 +63,18 @@ export const PERGUNTAS: Record<string, Pergunta> = {
       { valor: 'outro', rotulo: 'Outro / não sei', emoji: '❓' },
     ],
   },
+  grupo_domestico: {
+    id: 'grupo_domestico',
+    texto: 'Que animal é?',
+    tipo: 'unica',
+    ajuda: 'Quem atende um cavalo não é quem atende um gato — e a espécie abre caminho para doenças específicas.',
+    opcoes: [
+      { valor: 'cao', rotulo: 'Cão', emoji: '🐕' },
+      { valor: 'gato', rotulo: 'Gato', emoji: '🐈' },
+      { valor: 'grande_porte', rotulo: 'Cavalo, boi ou outro de grande porte', emoji: '🐴' },
+      { valor: 'outro', rotulo: 'Outro / não sei', emoji: '🐾' },
+    ],
+  },
   sinais: {
     id: 'sinais',
     texto: 'Você percebe algum destes sinais?',
@@ -108,11 +120,13 @@ const FLUXO: { id: string; quando: (r: Respostas) => boolean }[] = [
   { id: 'situacao', quando: (r) => r.tipo_animal !== 'silvestre' },
   { id: 'situacao_silvestre', quando: (r) => r.tipo_animal === 'silvestre' },
   { id: 'sinais', quando: (r) => COM_SINAIS.includes(r.situacao as string) || r.situacao_silvestre === 'ferido' },
-  // Depois dos sinais: numa capivara convulsionando, saber que convulsiona vale mais que saber o grupo.
-  { id: 'grupo_silvestre', quando: (r) => r.tipo_animal === 'silvestre' },
   { id: 'maus_tratos_agora', quando: (r) => r.situacao === 'maus_tratos' },
   { id: 'abandono_filhotes', quando: (r) => r.situacao === 'abandono' },
   { id: 'outros_animais', quando: (r) => r.situacao === 'envenenamento' },
+  // Por último, o grupo do animal: não muda a prioridade, muda QUEM atende. Numa capivara
+  // convulsionando, saber que convulsiona vale mais do que saber que é capivara.
+  { id: 'grupo_silvestre', quando: (r) => r.tipo_animal === 'silvestre' },
+  { id: 'grupo_domestico', quando: (r) => r.tipo_animal === 'domestico' },
 ]
 
 /** Próxima pergunta ainda não respondida, ou null quando a triagem terminou. */

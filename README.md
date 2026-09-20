@@ -78,10 +78,34 @@ por distância em linha reta. Sem local ou abaixo de P2, o cartão não aparece.
 **Só recomenda** — quem aciona é o operador. Não é visível ao cidadão: indicar clínica privada em
 nome da Prefeitura é decisão a tomar antes, não um detalhe de tela.
 
+### Briefing para quem vai atender
+
+Em P1/P2 o painel monta um bloco pronto para ler no rádio ou colar no WhatsApp de quem está a
+caminho: protocolo e prioridade, **se há pessoa ferida**, o relato, espécie, o que a foto mostra,
+local com coordenadas e contato. Montado por concatenação de campos, não por IA — precisa ser
+instantâneo, igual toda vez e sem chance de inventar. O que a IA produziu entra citado e marcado
+como leitura automática a confirmar no local.
+
+### A foto é lida com o caso em volta
+
+`analisarFoto` recebe o relato e se houve pessoa ferida. Sozinha, a imagem engana: no
+CA-2026-000213 ("pisou numa cobra, ela picou ele") o modelo olhou só a foto e escreveu *"não há
+ferimentos visíveis nem riscos imediatos no ambiente"* — sobre um caso em que alguém tinha acabado
+de ser picado por uma coral. A imagem não mostra a pessoa; quem sabe da picada é o relato.
+
+O prompt agora proíbe conclusão tranquilizadora, e manda dizer de que espécie o padrão é compatível
+em vez de afirmar que não é peçonhenta: **a IA pode subir o risco, nunca baixar.**
+
 ## Placeholders a validar antes de qualquer uso real
 
 - `packages/triagem/src/orientacoes.ts` — orientações clínicas (validar com médico-veterinário)
 - `packages/triagem/src/servicos.ts` — tabela de competência e contatos (pactuar com a Prefeitura)
+- **Orientações de primeiros socorros a pessoas não existem no sistema e não devem ser inventadas.**
+  Para picada de cobra, a orientação oficial (Butantan / Ministério da Saúde) é: lavar com água e
+  sabão, manter o membro estendido e imobilizado, pessoa em repouso, e levar ao serviço de saúde —
+  **o soro é o tratamento**. Não fazer torniquete/garrote (concentra a peçonha e soma isquemia à
+  necrose), não cortar, não sugar, não aplicar substâncias. Qualquer texto desse tipo entra fixo,
+  revisado e com fonte citada — nunca gerado pelo modelo.
 - **`profissionais` (tabela, semeada em `api/src/db/seed.ts`) — cadastro FICTÍCIO de quem atende.
   Nomes de clínicas e coordenadas são inventados; só 193 é telefone real. Nada disso pode ir ao ar
   sem cadastro pactuado e consentimento dos profissionais.** Re-semear sem apagar ocorrências:

@@ -83,7 +83,20 @@ describe('pré-triagem adaptativa', () => {
   })
 
   it('termina quando não há mais perguntas relevantes', () => {
-    expect(proximaPergunta({ pessoa_risco: 'nao', tipo_animal: 'domestico', situacao: 'morto_via' })).toBeNull()
+    // O grupo do animal é a última pergunta de todo caso doméstico: muda quem remove a carcaça.
+    const r = { pessoa_risco: 'nao', tipo_animal: 'domestico', situacao: 'morto_via' }
+    expect(proximaPergunta(r)?.id).toBe('grupo_domestico')
+    expect(proximaPergunta({ ...r, grupo_domestico: 'cao' })).toBeNull()
+  })
+
+  it('o grupo é sempre a última pergunta — prioridade primeiro, quem atende depois', () => {
+    const abandono = { pessoa_risco: 'nao', tipo_animal: 'domestico', situacao: 'abandono' }
+    expect(proximaPergunta(abandono)?.id).toBe('abandono_filhotes')
+    expect(proximaPergunta({ ...abandono, abandono_filhotes: 'sim' })?.id).toBe('grupo_domestico')
+
+    const envenenamento = { pessoa_risco: 'nao', tipo_animal: 'domestico', situacao: 'envenenamento', sinais: ['vomito'] }
+    expect(proximaPergunta(envenenamento)?.id).toBe('outros_animais')
+    expect(proximaPergunta({ ...envenenamento, outros_animais: 'nao' })?.id).toBe('grupo_domestico')
   })
 
   it('poda respostas que deixaram de ser relevantes', () => {
@@ -391,5 +404,26 @@ describe('frentes de atendimento — pessoa antes do animal', () => {
   it('a frente do animal continua sendo a capacidade de antes', () => {
     const r = { pessoa_risco: 'nao', tipo_animal: 'domestico', situacao: 'atropelamento', sinais: ['sangramento'] }
     expect(nec(r)[0].capacidades).toEqual(capacidadesPara(r, classificar(r)))
+  })
+})
+
+describe('grupo do animal doméstico', () => {
+  const caps = (r: Record<string, string | string[]>) => capacidadesPara(r, classificar(r))
+
+  it('cavalo atropelado exige clínica de grande porte; cão não', () => {
+    const base = { pessoa_risco: 'nao', tipo_animal: 'domestico', situacao: 'atropelamento', sinais: ['sangramento'] }
+    expect(caps({ ...base, grupo_domestico: 'grande_porte' })).toEqual(['clinica_veterinaria', 'grande_porte'])
+    expect(caps({ ...base, grupo_domestico: 'cao' })).toEqual(['clinica_veterinaria'])
+  })
+
+  it('carcaça de grande porte exige remoção com capacidade para grande porte', () => {
+    const base = { pessoa_risco: 'nao', tipo_animal: 'domestico', situacao: 'morto_via' }
+    expect(caps({ ...base, grupo_domestico: 'grande_porte' })).toEqual(['remocao', 'grande_porte'])
+    expect(caps({ ...base, grupo_domestico: 'gato' })).toEqual(['remocao'])
+  })
+
+  it('trocar para silvestre descarta o grupo doméstico', () => {
+    const r = podarRespostas({ pessoa_risco: 'nao', tipo_animal: 'silvestre', grupo_domestico: 'cao', situacao_silvestre: 'avistado' })
+    expect(r.grupo_domestico).toBeUndefined()
   })
 })

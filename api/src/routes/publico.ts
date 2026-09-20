@@ -104,7 +104,7 @@ export async function rotasPublicas(app: FastifyInstance) {
       'Central Animal',
       `Ocorrência registrada: ${CATEGORIAS[r.categoria]} — prioridade ${rotuloPrioridade(r.prioridade)}.`,
     )
-    enriquecerComIa(criada.id, dados.relato || null, r.categoria, r.motivos, caminhoFoto, (m) => req.log.warn(m))
+    enriquecerComIa(criada.id, dados.relato || null, r.categoria, r.motivos, caminhoFoto, r.rota === 'humana', (m) => req.log.warn(m))
 
     return { protocolo: criada.protocolo }
   })

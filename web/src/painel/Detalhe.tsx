@@ -1,4 +1,4 @@
-import { CAPACIDADES, podarRespostas, PRIORIDADES, type Prioridade } from '@ca/triagem'
+import { CAPACIDADES, CATEGORIAS, podarRespostas, PRIORIDADES, type Prioridade } from '@ca/triagem'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import L from 'leaflet'
 import { useState, type ReactNode } from 'react'
@@ -258,6 +258,14 @@ export default function Detalhe({ id, demo, onFechar, onAbrir }: { id: string; d
         </Cartao>
       )}
 
+      {o.prioridade <= 2 && (
+        <Cartao titulo="Para passar a quem vai atender">
+          <Revelar demo={demo} rotulo="Mostrar briefing (oculto no modo demo)">
+            <Briefing o={o} />
+          </Revelar>
+        </Cartao>
+      )}
+
       <Cartao titulo="Encaminhamento">
         <ul className="divide-y divide-slate-100">
           {o.servicos.map((s) => (
@@ -455,6 +463,77 @@ function Acoes(props: {
         {props.erro && <p role="alert" className="text-sm text-red-600">{props.erro}</p>}
       </div>
     </Cartao>
+  )
+}
+
+/**
+ * Resumo pronto para ser lido no rádio ou colado no WhatsApp de quem está a caminho.
+ *
+ * Montado por concatenação de campos, não por IA: precisa ser instantâneo, igual toda vez e sem
+ * chance de inventar. O que a IA produziu (resumo e leitura da foto) entra como citação, marcado.
+ */
+function textoBriefing(o: OcorrenciaDetalhe): string {
+  const p = PRIORIDADES[o.prioridade]
+  const grupo = (o.respostas.grupo_silvestre ?? o.respostas.grupo_domestico) as string | undefined
+  const especie = [
+    o.respostas.tipo_animal === 'silvestre' ? 'Silvestre' : 'Doméstico',
+    grupo && rotuloResposta(o.respostas.grupo_silvestre ? 'grupo_silvestre' : 'grupo_domestico', grupo),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const linhas = [
+    `CENTRAL ANIMAL · ${o.protocolo} · PRIORIDADE ${p.rotulo.toUpperCase()}`,
+    `Registrado ${tempoRelativo(o.criadoEm)} (${horario(o.criadoEm)}) · ${CATEGORIAS[o.categoria]}`,
+    '',
+  ]
+
+  // O dado que mais muda a conduta de quem recebe: tem gente ferida?
+  linhas.push(
+    o.rota === 'humana'
+      ? 'PESSOA FERIDA: SIM. O cidadão foi orientado a ligar 192 (SAMU) ou 193 (Bombeiros).'
+      : 'PESSOA FERIDA: não relatada.',
+    '',
+  )
+
+  if (o.relato) linhas.push('O QUE O CIDADÃO RELATOU', o.relato, '')
+  linhas.push('ANIMAL', especie)
+  if (o.analiseFotoIa) linhas.push(`Foto (leitura automática, confirmar no local): ${o.analiseFotoIa}`)
+  linhas.push('')
+
+  linhas.push('LOCAL', o.endereco ?? 'Sem referência escrita')
+  if (o.lat != null && o.lng != null) linhas.push(`${o.lat.toFixed(6)}, ${o.lng.toFixed(6)}`)
+  linhas.push('')
+
+  linhas.push('CONTATO', o.anonimo ? 'Relato anônimo — sem retorno possível' : `${o.contatoNome} · ${o.contatoTel}`)
+  return linhas.join('\n')
+}
+
+function Briefing({ o }: { o: OcorrenciaDetalhe }) {
+  const [copiado, setCopiado] = useState(false)
+  const texto = textoBriefing(o)
+  return (
+    <div className="space-y-2">
+      {/* Região rolável precisa de foco próprio: sem tabindex, quem usa teclado não consegue ler o resto. */}
+      <pre
+        tabIndex={0}
+        role="region"
+        aria-label="Briefing da ocorrência"
+        className="max-h-72 overflow-auto rounded-lg bg-slate-50 p-3 font-mono text-xs whitespace-pre-wrap text-slate-800"
+      >
+        {texto}
+      </pre>
+      <button
+        onClick={() => {
+          navigator.clipboard?.writeText(texto)
+          setCopiado(true)
+          setTimeout(() => setCopiado(false), 2500)
+        }}
+        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+      >
+        <span role="status">{copiado ? '✓ Copiado' : 'Copiar briefing'}</span>
+      </button>
+    </div>
   )
 }
 
