@@ -95,46 +95,60 @@ curl -s --max-time 5 http://127.0.0.1:20241/ready     # métricas do cloudflared
 
 ## Acessibilidade
 
-O app está **sem violações** no AccessLint (WCAG 2.2 AA) em `/`, `/relatar`, `/acompanhar`,
-`/painel` e no detalhe do caso. Vale manter assim — a base é pequena e as regras abaixo são as que
-já quebraram uma vez.
+O app está **sem violações** no AccessLint (WCAG 2.2 AA) em `/`, `/relatar` (todas as etapas do chat),
+`/acompanhar`, `/painel` e no detalhe do caso, inclusive no modo demo. Vale manter assim — a base é
+pequena e as regras abaixo são as que já quebraram uma vez.
 
-### Contraste: os números que importam aqui
+### O sistema "Plantão" e os números que importam
 
-Medidos neste projeto, não estimados. `slate-500` é o limite e **depende do fundo**:
+A interface usa o sistema visual do deck do pitch (tokens em `web/src/index.css`, `@theme`). Cada voz
+tem uma cor: **P1–P4 são só das regras**, **anil é só da IA**, **tinta/claro é de quem confirma**.
+Dois chãos: **papel** (celular do cidadão) e **noite** (painel e telão). Contrastes medidos:
 
-| Texto | sobre branco | sobre `slate-50` | sobre `slate-100` |
+| Texto | sobre `papel` #f2f4f3 | sobre branco | sobre `noite-1` #0d1b26 | sobre `noite-2` #132634 |
+|---|---|---|---|---|
+| `tinta` #0d1b26 | 15,8 ✓ | 17,5 ✓ | — | — |
+| `suave` #5b6b78 | 5,0 ✓ | 5,5 ✓ | — | — |
+| `claro` #eef2f1 | — | — | 15,5 ✓ | 13,7 ✓ |
+| `nevoa` #8fa3b3 | — | — | 6,7 ✓ | 6,0 ✓ |
+| `cinza` #6f8799 | 3,4 ✗ texto | 3,8 (só borda) | 4,7 ✓ | **4,1 ✗** |
+| `ia` #4b55c9 | 5,5 ✓ | 6,1 ✓ | — | — |
+| `ia-noite` #9aa8ff | — | — | 7,8 ✓ | 7,0 ✓ |
+| `alerta` #c4262e | 5,2 ✓ | 5,7 ✓ | — | — |
+
+- **`cinza` é traiçoeiro:** serve de texto terciário só sobre `noite-0`/`noite-1`. Sobre `noite-2` (cartão
+  selecionado da fila) reprova — use `nevoa`. No papel ele é **borda de campo** (3,8:1 ≥ 3:1), nunca texto.
+- **P1–P4 como texto na noite passam** (P1 5,7 · P2 5,9 · P3 11,1 · P4 5,5 sobre `noite-1`), por isso
+  a escada de prioridade e a legenda do mapa podem usar a própria cor.
+
+Selos e fundos de prioridade — a cor do texto não é escolha estética:
+
+| | fundo | texto `tinta` | texto branco |
 |---|---|---|---|
-| `text-slate-500` | 4,76 ✓ | 4,55 ✓ (raspando) | **4,35 ✗** |
-| `text-slate-600` | 7,58 ✓ | 7,25 ✓ | 6,92 ✓ |
+| P1 | `#ff5a60` | **5,7 ✓** | 3,1 ✗ |
+| P2 | `#f76b15` | **5,9 ✓** | 3,0 ✗ |
+| P3 | `#ffc53d` | **11,1 ✓** | 1,6 ✗ |
+| P4 | `#2fa36b` | **5,5 ✓** | 3,2 ✗ |
 
-O fundo do painel é o `slate-100` do `body`. **Texto secundário direto sobre ele precisa ser
-`slate-600`.** Dentro de `Cartao` (que é branco) o `slate-500` passa.
-
-Selos de prioridade — a cor do texto não é escolha estética:
-
-| | fundo | texto branco | texto `slate-900` |
-|---|---|---|---|
-| P1 | `#dc2626` | **4,83 ✓** | 3,69 ✗ |
-| P2 | `#ea580c` | 3,56 ✗ | **5,01 ✓** |
-| P3 | `#ca8a04` | 2,94 ✗ | **6,07 ✓** |
-| P4 | `#16a34a` | 3,30 ✗ | **5,41 ✓** |
-
-Ou seja: **branco só no P1**; nos outros três, texto escuro. Está em `CLASSE_PRIORIDADE` (`web/src/ui.tsx`).
+Ou seja: **sobre prioridade o texto é sempre tinta, branco nunca.** Está em `CLASSE_PRIORIDADE`
+(`web/src/ui.tsx`) e as cores em `PRIORIDADES` (`packages/triagem/src/regras.ts`).
 
 ### Regras que já foram quebradas aqui
 
-- **`opacity` em texto derruba o contraste.** Um `opacity-80` num rótulo sobre o `bg-p1` deu 3,53:1.
-  Se precisa de hierarquia, use tamanho, peso ou uma cor mais clara de verdade — não opacidade.
-- **Anel de foco precisa de 3:1** (WCAG 1.4.11). `focus:outline-none` só vale com substituto visível:
-  `marca-600` dá 4,88:1 e serve; `marca-500` dá 2,49:1 e não serve.
-- **Emoji é decoração** — vai em `<span aria-hidden="true">`, senão o leitor de tela anuncia
-  "curativo adesivo" antes do rótulo. A exceção é emoji que carrega informação (o 📷 da fila,
-  que indica "tem foto"): esse leva `aria-label`.
+- **`opacity` em texto derruba o contraste.** Um `opacity-80` num rótulo sobre a cor de prioridade deu 3,53:1.
+  Se precisa de hierarquia, use tamanho, peso ou uma cor medida da tabela — não opacidade.
+- **Anel de foco precisa de 3:1** (WCAG 1.4.11). O foco é global em `index.css`: anil de 2 px no papel,
+  `ia-noite` dentro de `.noite`. Não remova o `outline` sem substituto visível.
+- **Sem emoji na interface.** Os ícones são SVG de traço em `web/src/icones.tsx`, decorativos por padrão
+  (`aria-hidden`); o que carrega informação (a câmera da fila = "tem foto", a estrela da IA) recebe `rotulo`
+  e vira `role="img"`. Emoji muda de desenho a cada celular e o leitor de tela anuncia o nome dele.
 - **`autoFocus` só com ponteiro fino** (`FOCO_AUTOMATICO` em `web/src/ui.tsx`). No celular ele abre
   o teclado na hora e empurra a conversa para fora da tela.
-- **Toda animação decorativa some em `prefers-reduced-motion`** (`web/src/index.css`). O giro do
-  spinner fica de propósito: é o único sinal de que algo está carregando.
+- **Região que rola precisa de foco próprio.** A conversa do chat (`role="log"`) e o briefing têm
+  `tabIndex={0}`: quando a conversa passa da tela e não há nada focável dentro, o teclado não chega nela.
+- **Toda animação decorativa some em `prefers-reduced-motion`** (`web/src/index.css`). O que carrega
+  informação fica parado no lugar: o pulso do P1 sem responsável vira halo fixo, o "novo" vira anel.
+  O giro do spinner fica de propósito: é o único sinal de que algo está carregando.
 - **Telas de espera e de erro também precisam de `<main>` e `<h1>`** — enquanto o painel carregava,
   a página inteira ficava sem landmark (é o componente `Espera` em `web/src/painel/Painel.tsx`).
 
@@ -153,7 +167,7 @@ npx -y @accesslint/chrome stop
 **O scanner só enxerga o que está renderizado.** O chat (`web/src/cidadao/Relatar.tsx`) é um fluxo
 por etapas: no carregamento só existem dois botões, e uma varredura de `/relatar` volta limpa sem
 ter visto nenhum campo. Para auditar de verdade, avance o fluxo e audite o HTML de cada etapa.
-Pelo mesmo motivo, ao auditar `/painel` espere a fila aparecer (`wait_for: "select"`) — senão você
+Pelo mesmo motivo, ao auditar `/painel` espere a fila aparecer (`wait_for: ".cartao-fila"`) — senão você
 mede a tela de carregamento, não o painel.
 
 ---

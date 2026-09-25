@@ -1,17 +1,107 @@
 @import 'tailwindcss';
 
+/* Fontes do deck do pitch (SIL OFL), servidas daqui: sem depender de CDN no Wi-Fi do evento e sem
+   entregar o IP da plateia a terceiros. `swap` mostra o texto na fonte do sistema enquanto carrega. */
+@font-face {
+  font-family: 'Barlow';
+  src: url('/fonts/Barlow-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Barlow';
+  src: url('/fonts/Barlow-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Barlow';
+  src: url('/fonts/Barlow-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Barlow';
+  src: url('/fonts/Barlow-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  src: url('/fonts/BarlowCondensed-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  src: url('/fonts/BarlowCondensed-ExtraBold.ttf') format('truetype');
+  font-weight: 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/IBMPlexMono-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/IBMPlexMono-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/IBMPlexMono-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-display: swap;
+}
+
+/*
+ * Sistema "Plantão" — cada voz tem uma cor:
+ *   as regras decidem → P1–P4 (e só elas usam essas cores);
+ *   a IA sugere      → anil;
+ *   o cidadão/servidor confirma → tinta (papel) ou claro (noite).
+ * Contrastes medidos estão no CLAUDE.md.
+ */
 @theme {
-  --color-marca-50: #f0fdfa;
-  --color-marca-100: #ccfbf1;
-  --color-marca-500: #14b8a6;
-  /* Um tom abaixo do teal-600 (#0d9488, 3,7:1): texto branco nos botões e bolhas passa de 4,5:1. */
-  --color-marca-600: #0a7f74;
-  --color-marca-700: #0f766e;
-  --color-marca-900: #134e4a;
-  --color-p1: #dc2626;
-  --color-p2: #ea580c;
-  --color-p3: #ca8a04;
-  --color-p4: #16a34a;
+  --font-sans: 'Barlow', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+
+  /* Prioridade: texto sobre elas é sempre tinta (5,5 a 11:1). Branco não passa em nenhuma. */
+  --color-p1: #ff5a60;
+  --color-p2: #f76b15;
+  --color-p3: #ffc53d;
+  --color-p4: #2fa36b;
+
+  --color-tinta: #0d1b26;
+  /* P1 quando vira texto sobre papel (5,2:1): "Pessoa em risco?", alertas. */
+  --color-alerta: #c4262e;
+  /* Anil: só a IA. Sobre papel 5,5:1; a versão clara, sobre a noite, 7,8:1. */
+  --color-ia: #4b55c9;
+  --color-ia-noite: #9aa8ff;
+
+  /* Noite — painel e telão. */
+  --color-noite-0: #08131b;
+  --color-noite-1: #0d1b26;
+  --color-noite-2: #132634;
+  --color-noite-3: #1c3345;
+  --color-noite-linha: #1a2f40;
+  --color-noite-borda: #2a445a;
+  --color-mapa: #0a1822;
+  --color-claro: #eef2f1;
+  --color-claro-2: #d3dce0;
+  /* Secundário na noite: 6,7:1 sobre noite-1. */
+  --color-nevoa: #8fa3b3;
+  /* Terciário na noite (4,7:1 sobre noite-1; não usar sobre noite-2/3) e borda de campo no papel (3,8:1). */
+  --color-cinza: #6f8799;
+
+  /* Papel — celular do cidadão. */
+  --color-papel: #f2f4f3;
+  --color-regra: #d5dbdf;
+  /* Secundário no papel: 5,0:1 sobre papel, 5,5:1 sobre branco. */
+  --color-suave: #5b6b78;
 }
 
 html,
@@ -20,16 +110,26 @@ body,
   height: 100%;
 }
 
-/* Sem tema escuro: declarar 'light' impede o Chrome de escurecer sozinho selects e inputs nativos. */
+/* O painel escuro declara `color-scheme: dark` no próprio contêiner (selects nativos escuros);
+   o resto é claro. Declarar impede o Chrome de escurecer sozinho selects e inputs. */
 html {
   color-scheme: light;
 }
 
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  @apply bg-papel font-sans text-tinta antialiased;
   -webkit-tap-highlight-color: transparent;
   /* Tira o atraso de ~300 ms que o navegador guarda esperando um duplo-toque. */
   touch-action: manipulation;
+}
+
+/* Foco sempre visível em anil: 2 px, acima de 3:1 nos dois chãos (WCAG 1.4.11). */
+:focus-visible {
+  outline: 2px solid var(--color-ia);
+  outline-offset: 2px;
+}
+.noite :focus-visible {
+  outline-color: var(--color-ia-noite);
 }
 
 @keyframes entrar {
@@ -49,27 +149,77 @@ body {
 @keyframes pulso-novo {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgb(20 184 166 / 0.6);
+    box-shadow: 0 0 0 0 rgb(154 168 255 / 0.6);
   }
   50% {
-    box-shadow: 0 0 0 8px rgb(20 184 166 / 0);
+    box-shadow: 0 0 0 6px rgb(154 168 255 / 0);
   }
 }
 .destaque-novo {
   animation: pulso-novo 1.2s ease-in-out 4;
 }
 
-/* Quem pede menos movimento perde só o que é decorativo: entrada, pulso do "novo" e os pontinhos
-   de "digitando". O giro do spinner fica — é o único sinal de que algo está carregando. */
+/* "Ao vivo": o ponto pisca devagar. */
+@keyframes vivo {
+  50% {
+    opacity: 0.25;
+  }
+}
+.vivo {
+  animation: vivo 1.6s ease-in-out infinite;
+}
+
+/* Etapa atual do caso no celular do cidadão. */
+@keyframes anel {
+  from {
+    box-shadow: 0 0 0 0 rgb(13 27 38 / 0.35);
+  }
+  to {
+    box-shadow: 0 0 0 9px rgb(13 27 38 / 0);
+  }
+}
+.anel {
+  animation: anel 2s ease-out infinite;
+}
+
+/* P1 sem responsável pulsa no mapa até alguém assumir. É um path SVG do Leaflet: escala a partir do centro. */
+@keyframes pulso-mapa {
+  from {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+.pulso-mapa {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulso-mapa 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+
+/* Quem pede menos movimento perde só o que é decorativo. O que carrega informação fica parado no lugar:
+   o destaque do caso novo vira anel fixo, o pulso do P1 vira um halo estático. O giro do spinner fica —
+   é o único sinal de que algo está carregando. */
 @media (prefers-reduced-motion: reduce) {
   .animar-entrada,
   .destaque-novo,
-  .animate-bounce {
+  .animate-bounce,
+  .vivo,
+  .anel,
+  .pulso-mapa {
     animation: none;
   }
-  /* O destaque continua existindo, parado: anel fixo no lugar do pulso. */
   .destaque-novo {
-    box-shadow: 0 0 0 3px rgb(20 184 166 / 0.6);
+    box-shadow: 0 0 0 3px rgb(154 168 255 / 0.6);
+  }
+  .anel {
+    box-shadow: 0 0 0 4px rgb(13 27 38 / 0.18);
+  }
+  .pulso-mapa {
+    opacity: 0.35;
+    transform: scale(2);
   }
 }
 
@@ -77,14 +227,50 @@ body {
    evita que a barra de rolagem pule. Resolve o caso de >50 casos sem trazer uma lib de virtualização. */
 .cartao-fila {
   content-visibility: auto;
-  contain-intrinsic-size: auto 132px;
+  contain-intrinsic-size: auto 112px;
 }
 
 .leaflet-container {
   font: inherit;
 }
 
-/* Mapa base em cinza: o verde dos parques competia com o P4. Cor no mapa só para prioridade e pino. */
+/* Mapa do cidadão: base em cinza. O verde dos parques competia com o P4; cor no mapa só para prioridade e pino. */
 .leaflet-tile-pane {
   filter: grayscale(1) contrast(0.9) brightness(1.05);
+}
+
+/* Mapa do painel: os mesmos tiles do OpenStreetMap, invertidos e puxados para o azul da noite.
+   Brilho 0,86: com 0,62 as ruas e os nomes de bairro sumiam no telão; acima de ~0,95 o fundo acinzenta
+   e os marcadores (o verde do P4 principalmente) param de saltar. */
+.mapa-noite.leaflet-container {
+  background: var(--color-mapa);
+}
+.mapa-noite .leaflet-tile-pane {
+  filter: grayscale(1) invert(1) sepia(0.5) hue-rotate(172deg) saturate(1.9) brightness(0.86) contrast(1.05);
+}
+.mapa-noite .leaflet-control-attribution {
+  background: rgb(8 19 27 / 0.8);
+  color: var(--color-nevoa);
+}
+.mapa-noite .leaflet-control-attribution a {
+  color: var(--color-claro);
+}
+.mapa-noite .leaflet-bar a {
+  background: var(--color-noite-1);
+  color: var(--color-claro);
+  border-color: var(--color-noite-borda);
+}
+.mapa-noite .leaflet-bar a:hover {
+  background: var(--color-noite-2);
+}
+.dica-noite.leaflet-tooltip {
+  background: var(--color-noite-1);
+  color: var(--color-claro);
+  border: 1px solid var(--color-noite-borda);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.5);
+  padding: 8px 10px;
+}
+.dica-noite.leaflet-tooltip-top::before {
+  border-top-color: var(--color-noite-borda);
 }

@@ -1,8 +1,20 @@
-import { aplicarVivo, detectarSinais, PERGUNTAS, podarRespostas, proximaPergunta, type Pergunta, type Respostas, type Vivo } from '@ca/triagem'
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  aplicarVivo,
+  classificar,
+  detectarSinais,
+  ORIENTACOES_VALIDADAS,
+  PERGUNTAS,
+  podarRespostas,
+  proximaPergunta,
+  type Pergunta,
+  type Respostas,
+  type Vivo,
+} from '@ca/triagem'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, comPrazo } from '../api'
-import { FOCO_AUTOMATICO, Pata, rotuloResposta } from '../ui'
+import { Camera, Check, Faisca, Pino, Seta, Voltar } from '../icones'
+import { FOCO_AUTOMATICO, rotuloResposta } from '../ui'
 import MapaPino from './MapaPino'
 import { salvarProtocolo } from './meusProtocolos'
 import { reduzirFoto } from './reduzirFoto'
@@ -21,7 +33,11 @@ type Etapa =
   | 'foto'
   | 'contato'
   | 'enviando'
-type Mensagem = { id: number; de: 'bot' | 'eu'; texto: string; alerta?: boolean }
+/**
+ * `lista`: a bolha vira título (`texto`) + itens — usada para o "O que fazer agora".
+ * `ia`: pergunta que a IA escreveu por estar em dúvida — ganha a borda e o rótulo em anil.
+ */
+type Mensagem = { id: number; de: 'bot' | 'eu'; texto: string; alerta?: boolean; lista?: string[]; ia?: boolean }
 
 /** O que a Central perguntou na conversa com a IA e o que o cidadão respondeu. */
 type Troca = { pergunta: string; resposta: string }
@@ -53,6 +69,8 @@ const CONTEXTO_INICIAL: Contexto = { trocas: [], rodadas: 0, pessoaVista: false,
 
 const ROTULO_CURTO: Record<string, string> = {
   tipo_animal: 'Animal',
+  grupo_domestico: 'Que animal',
+  grupo_silvestre: 'Que animal',
   situacao: 'Situação',
   situacao_silvestre: 'Onde está',
   sinais: 'Sinais',
@@ -60,6 +78,28 @@ const ROTULO_CURTO: Record<string, string> = {
   abandono_filhotes: 'Filhotes',
   outros_animais: 'Outros animais afetados',
 }
+
+// As seis etapas que o cidadão vê no alto. A conversa com a IA (esclarecer, corrigir…) é parte do "relato".
+const PASSO: Record<Etapa, { n: number; nome: string }> = {
+  pessoa: { n: 1, nome: 'Segurança' },
+  relato: { n: 2, nome: 'Relato' },
+  interpretando: { n: 2, nome: 'Relato' },
+  esclarecer: { n: 2, nome: 'Relato' },
+  pessoa_de_novo: { n: 2, nome: 'Relato' },
+  vivo: { n: 2, nome: 'Relato' },
+  corrigir: { n: 2, nome: 'Relato' },
+  confirmar: { n: 3, nome: 'Confirmar' },
+  perguntas: { n: 3, nome: 'Perguntas' },
+  local: { n: 4, nome: 'Local' },
+  foto: { n: 5, nome: 'Foto' },
+  contato: { n: 6, nome: 'Contato' },
+  enviando: { n: 6, nome: 'Contato' },
+}
+
+// Tinta é a mão de quem decide: botão principal e marcação. Borda de campo em #6f8799 (3,8:1 sobre branco).
+const PRIMARIO = 'min-h-12 rounded-md bg-tinta px-4 font-semibold text-white disabled:opacity-40'
+const SECUNDARIO = 'min-h-12 rounded-md border-[1.5px] border-tinta px-4 font-semibold disabled:opacity-40'
+const CAMPO = 'rounded-md border border-cinza bg-white text-base placeholder:text-suave'
 
 let proximoId = 0
 
@@ -80,21 +120,26 @@ export default function Relatar() {
   const [foto, setFoto] = useState<{ blob: Blob; url: string } | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const fim = useRef<HTMLDivElement>(null)
+  const orientacoes = useRef<HTMLDivElement>(null)
 
-  const falar = (de: Mensagem['de'], texto: string, alerta = false) =>
-    setMensagens((m) => [...m, { id: proximoId++, de, texto, alerta }])
+  const falar = (de: Mensagem['de'], texto: string, alerta = false, lista?: string[]) =>
+    setMensagens((m) => [...m, { id: proximoId++, de, texto, alerta, lista }])
+  const falarIa = (texto: string) => setMensagens((m) => [...m, { id: proximoId++, de: 'bot', texto, ia: true }])
 
   useEffect(() => {
     setMensagens([
-      { id: proximoId++, de: 'bot', texto: 'Olá! Sou a Central Animal de Pato Branco. Vou te ajudar a encaminhar essa ocorrência. 🐾' },
+      { id: proximoId++, de: 'bot', texto: 'Olá! Sou a Central Animal de Pato Branco. Vou te ajudar a encaminhar essa ocorrência.' },
       { id: proximoId++, de: 'bot', texto: PERGUNTAS.pessoa_risco.texto },
     ])
   }, [])
 
   useEffect(() => {
     // Rolagem suave é animação: quem pediu menos movimento salta direto para o fim.
-    const suave = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    fim.current?.scrollIntoView({ behavior: suave ? 'smooth' : 'auto', block: 'end' })
+    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+    // Quando as orientações chegam, rola até o começo delas, não até o fim: no celular o mapa da etapa do local
+    // deixa pouco espaço para a conversa, e rolar até o fim escondia justamente o título e a primeira orientação.
+    if (etapa === 'local' && orientacoes.current) orientacoes.current.scrollIntoView({ behavior, block: 'start' })
+    else fim.current?.scrollIntoView({ behavior, block: 'end' })
   }, [mensagens, etapa])
 
   /** Segue para a próxima pergunta adaptativa, ou para a localização quando a triagem terminou. */
@@ -105,7 +150,11 @@ export default function Relatar() {
       falar('bot', q.texto)
       setEtapa('perguntas')
     } else {
-      falar('bot', 'Entendi. Agora, onde está o animal?')
+      // As orientações saem aqui, assim que a categoria está fechada — não só na tela do protocolo. Quem está
+      // diante de um animal envenenado precisa do "não provoque vômito" agora, não depois de mapa, foto e contato.
+      // Mesma função que a API usa ao registrar: o que o chat mostra é o que o protocolo vai mostrar.
+      falar('bot', 'O que fazer agora', false, classificar(r).orientacoes)
+      falar('bot', 'Agora, onde está o animal?')
       setEtapa('local')
     }
   }
@@ -120,7 +169,7 @@ export default function Relatar() {
   }
 
   const alertaPessoa = () =>
-    falar('bot', '🚨 Ligue AGORA para o 192 (SAMU) ou 193 (Bombeiros). Enquanto isso, continuamos o registro do animal.', true)
+    falar('bot', 'Ligue agora para o 192 (SAMU) ou 193 (Bombeiros). Enquanto isso, continuamos o registro do animal.', true)
 
   /** Só o que o cidadão escreveu — as perguntas da Central não entram ("Ele está sangrando?" não é sangramento). */
   const textoDoCidadao = (trocas: Troca[]) => [relato, ...trocas.map((t) => t.resposta)].join('. ')
@@ -157,7 +206,7 @@ export default function Relatar() {
       falar('bot', PERGUNTA_VIVO)
       setEtapa('vivo')
     } else if (r.pergunta && podePerguntar(c)) {
-      falar('bot', r.pergunta.texto)
+      falarIa(r.pergunta.texto)
       setEtapa('esclarecer')
     } else {
       const morto = c.vivo === 'nao'
@@ -224,7 +273,7 @@ export default function Relatar() {
 
   function confirmarSugestao(certo: boolean) {
     if (certo) {
-      falar('eu', '✓ Está certo')
+      falar('eu', 'Está certo')
       avancar(podarRespostas({ ...sugestao, ...respostas }))
     } else if (ctx.rodadas < MAX_RODADAS) {
       falar('eu', 'Quero corrigir')
@@ -242,14 +291,14 @@ export default function Relatar() {
   }
 
   function confirmarLocal() {
-    falar('eu', [pos ? '📍 Localização marcada no mapa' : null, endereco.trim() || null].filter(Boolean).join(' · '))
+    falar('eu', [pos ? 'Localização marcada no mapa' : null, endereco.trim() || null].filter(Boolean).join(' · '))
     falar('bot', 'Quer enviar uma foto? Ela ajuda a equipe a entender a gravidade.')
     setEtapa('foto')
   }
 
   function confirmarFoto(enviar: boolean) {
     if (!enviar) setFoto(null)
-    falar('eu', enviar ? '📷 Foto anexada' : 'Sem foto')
+    falar('eu', enviar ? 'Foto anexada' : 'Sem foto')
     falar('bot', 'Por último: quer receber retorno sobre o atendimento?')
     setEtapa('contato')
   }
@@ -285,26 +334,39 @@ export default function Relatar() {
 
   const pergunta = etapa === 'perguntas' ? proximaPergunta(respostas) : null
 
+  const passo = PASSO[etapa]
+
   return (
-    <main className="mx-auto flex h-full max-w-md flex-col bg-slate-50">
-      <header className="flex items-center gap-3 bg-marca-700 px-4 py-3 text-white shadow">
-        <Link to="/" className="text-2xl leading-none" aria-label="Voltar">
-          ‹
-        </Link>
-        <div className="grid size-9 place-items-center rounded-full bg-white/15">
-          <Pata className="size-5" />
+    <main className="mx-auto flex h-full max-w-md flex-col bg-papel">
+      <header className="shrink-0 border-b border-regra pb-2.5">
+        <div className="flex h-13 items-center gap-1 pr-4 pl-1">
+          <Link to="/" aria-label="Voltar ao início" className="grid size-11 place-items-center">
+            <Voltar className="size-[22px]" />
+          </Link>
+          <h1 className="text-[17px] font-semibold">Nova ocorrência</h1>
+          <span className="ml-auto font-mono text-[10.5px] tracking-[0.1em] text-suave uppercase">
+            Etapa {passo.n} de 6 · {passo.nome}
+          </span>
         </div>
-        <div className="flex-1">
-          <h1 className="font-semibold">Central Animal</h1>
-          <div className="text-xs text-marca-100">{etapa === 'interpretando' ? 'analisando seu relato…' : 'online'}</div>
+        <div role="img" aria-label={`Etapa ${passo.n} de 6`} className="flex gap-1 px-4">
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <span key={n} className={`h-1 flex-1 rounded-sm ${n <= passo.n ? 'bg-tinta' : 'bg-regra'}`} />
+          ))}
         </div>
       </header>
 
-      {/* role="log" + aria-live: sem isso o leitor de tela nunca anuncia as perguntas da Central. */}
-      <div role="log" aria-live="polite" aria-label="Conversa com a Central Animal" className="flex-1 space-y-2 overflow-y-auto px-3 py-4">
+      {/* role="log" + aria-live: sem isso o leitor de tela nunca anuncia as perguntas da Central.
+          tabIndex: a conversa rola e não tem nada focável dentro — sem ele, quem usa teclado não volta para ler o começo. */}
+      <div
+        role="log"
+        aria-live="polite"
+        aria-label="Conversa com a Central Animal"
+        tabIndex={0}
+        className="flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-4"
+      >
         {mensagens.map((m) => (
-          <Bolha key={m.id} de={m.de} alerta={m.alerta}>
-            {m.texto}
+          <Bolha key={m.id} de={m.de} alerta={m.alerta} ia={m.ia} ref={m.lista ? orientacoes : undefined}>
+            {m.lista ? <Orientacoes titulo={m.texto} itens={m.lista} /> : m.texto}
           </Bolha>
         ))}
         {etapa === 'interpretando' && (
@@ -312,25 +374,25 @@ export default function Relatar() {
             <span className="inline-flex gap-1">
               <Ponto /> <Ponto atraso="150ms" /> <Ponto atraso="300ms" />
             </span>
-            <span className="ml-2 text-xs text-slate-500">{ctx.trocas.length ? 'IA analisando sua resposta' : 'IA analisando seu relato'}</span>
+            <span className="ml-2 text-[13px] text-suave">{ctx.trocas.length ? 'IA analisando sua resposta' : 'IA analisando seu relato'}</span>
           </Bolha>
         )}
         <div ref={fim} />
       </div>
 
-      <div className="border-t border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="shrink-0 border-t border-regra bg-white px-4 pt-3.5 pb-[max(1rem,env(safe-area-inset-bottom))]">
         {etapa === 'pessoa' && (
           <Opcoes>
             {PERGUNTAS.pessoa_risco.opcoes.map((o) => (
               <BotaoOpcao key={o.valor} onClick={() => responderPessoa(o.valor)} destaque={o.valor === 'sim'}>
-                <span aria-hidden="true">{o.emoji}</span> {o.rotulo}
+                {o.rotulo}
               </BotaoOpcao>
             ))}
           </Opcoes>
         )}
 
         {etapa === 'relato' && (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <textarea
               autoFocus={FOCO_AUTOMATICO}
               value={relato}
@@ -339,17 +401,13 @@ export default function Relatar() {
               rows={3}
               maxLength={1000}
               placeholder="Ex.: atropelaram um cachorro na minha rua, ele está vivo mas sangrando e não consegue levantar…"
-              className="w-full resize-none rounded-xl border border-slate-300 p-3 text-base focus:outline-none focus-visible:border-marca-600 focus-visible:ring-2 focus-visible:ring-marca-600"
+              className={`w-full resize-none p-3 ${CAMPO}`}
             />
             <div className="flex gap-2">
-              <button onClick={pularRelato} className="rounded-xl px-3 py-3 text-sm text-slate-600">
+              <button type="button" onClick={pularRelato} className="min-h-12 px-3 text-sm text-suave underline underline-offset-[3px]">
                 Responder com botões
               </button>
-              <button
-                onClick={enviarRelato}
-                disabled={relato.trim().length < 3}
-                className="flex-1 rounded-xl bg-marca-600 py-3 font-semibold text-white disabled:opacity-40"
-              >
+              <button type="button" onClick={enviarRelato} disabled={relato.trim().length < 3} className={`flex-1 ${PRIMARIO}`}>
                 Enviar
               </button>
             </div>
@@ -360,7 +418,7 @@ export default function Relatar() {
           <ConversaIa
             key={ia.pergunta.texto}
             opcoes={ia.pergunta.opcoes}
-            placeholder="Ou escreva com suas palavras…"
+            placeholder="Ou responda com suas palavras"
             onResponder={(t) => responderIa(ia.pergunta!.texto, t)}
             onBotoes={() => {
               falar('eu', 'Prefiro responder com botões')
@@ -385,7 +443,7 @@ export default function Relatar() {
           <Opcoes>
             {PERGUNTAS.pessoa_risco.opcoes.map((o) => (
               <BotaoOpcao key={o.valor} onClick={() => responderPessoaDeNovo(o.valor)} destaque={o.valor === 'sim'}>
-                <span aria-hidden="true">{o.emoji}</span> {o.rotulo}
+                {o.rotulo}
               </BotaoOpcao>
             ))}
           </Opcoes>
@@ -403,25 +461,27 @@ export default function Relatar() {
 
         {etapa === 'confirmar' && sugestao && (
           <div className="space-y-3">
-            <div className="rounded-xl border border-marca-100 bg-marca-50 p-3">
-              <div className="mb-2 text-xs font-semibold text-marca-700">✨ Interpretado pela IA</div>
-              <dl className="space-y-1 text-sm">
+            <section aria-label="Interpretação da IA" className="overflow-hidden rounded-lg border border-regra">
+              <p className="flex items-center gap-1.5 border-b border-regra px-3.5 py-2 font-mono text-[10.5px] font-medium tracking-[0.12em] text-ia uppercase">
+                <Faisca className="size-3" /> Interpretado pela IA
+              </p>
+              <dl className="grid grid-cols-[112px_minmax(0,1fr)] gap-x-2.5 gap-y-1.5 px-3.5 py-2.5 text-[15px]">
                 {Object.entries(podarRespostas({ ...sugestao, ...respostas }))
                   .filter(([k]) => k !== 'pessoa_risco')
                   .map(([k, v]) => (
-                    <div key={k} className="flex gap-2">
-                      <dt className="w-28 shrink-0 text-slate-500">{ROTULO_CURTO[k] ?? k}</dt>
-                      <dd className="font-medium">{rotuloResposta(k, v)}</dd>
+                    <div key={k} className="contents">
+                      <dt className="text-suave">{ROTULO_CURTO[k] ?? k}</dt>
+                      <dd className="font-semibold">{rotuloResposta(k, v)}</dd>
                     </div>
                   ))}
               </dl>
-            </div>
+            </section>
             <div className="flex gap-2">
-              <button onClick={() => confirmarSugestao(false)} className="flex-1 rounded-xl border border-slate-300 py-3 font-medium">
+              <button type="button" onClick={() => confirmarSugestao(false)} className={`flex-1 ${SECUNDARIO}`}>
                 Corrigir
               </button>
-              <button onClick={() => confirmarSugestao(true)} className="flex-1 rounded-xl bg-marca-600 py-3 font-semibold text-white">
-                ✓ Está certo
+              <button type="button" onClick={() => confirmarSugestao(true)} className={`flex flex-1 items-center justify-center gap-2 ${PRIMARIO}`}>
+                <Check className="size-[18px]" /> Está certo
               </button>
             </div>
           </div>
@@ -466,11 +526,16 @@ function ConversaIa({
     if (texto.trim().length >= 2) onResponder(texto.trim().slice(0, 280))
   }
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       {opcoes.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {opcoes.map((o) => (
-            <button key={o} onClick={() => onResponder(o)} className="rounded-full border border-marca-600 px-4 py-2 text-sm font-medium text-marca-700 active:scale-[0.98]">
+            <button
+              key={o}
+              type="button"
+              onClick={() => onResponder(o)}
+              className="min-h-11 rounded-full border-[1.5px] border-tinta px-4 text-[15.5px] font-medium active:scale-[0.98]"
+            >
               {o}
             </button>
           ))}
@@ -483,14 +548,15 @@ function ConversaIa({
           onChange={(e) => setTexto(e.target.value)}
           maxLength={280}
           enterKeyHint="send"
+          aria-label="Responder com suas palavras"
           placeholder={placeholder}
-          className="min-w-0 flex-1 rounded-xl border border-slate-300 p-3 text-base focus:outline-none focus-visible:border-marca-600 focus-visible:ring-2 focus-visible:ring-marca-600"
+          className={`h-12 min-w-0 flex-1 px-3.5 ${CAMPO}`}
         />
-        <button type="submit" disabled={texto.trim().length < 2} className="rounded-xl bg-marca-600 px-4 font-semibold text-white disabled:opacity-40">
-          Enviar
+        <button type="submit" aria-label="Enviar resposta" disabled={texto.trim().length < 2} className="grid size-12 place-items-center rounded-md bg-tinta text-white disabled:opacity-40">
+          <Seta className="size-5" />
         </button>
       </form>
-      <button onClick={onBotoes} className="w-full py-1 text-sm text-slate-500">
+      <button type="button" onClick={onBotoes} className="min-h-9 w-full text-sm text-suave underline underline-offset-[3px]">
         Prefiro responder com botões
       </button>
     </div>
@@ -516,7 +582,7 @@ function Resposta({
       <Opcoes>
         {q.opcoes.map((o) => (
           <BotaoOpcao key={o.valor} onClick={() => onResponder(o.valor)}>
-            <span aria-hidden="true">{o.emoji}</span> {o.rotulo}
+            {o.rotulo}
           </BotaoOpcao>
         ))}
       </Opcoes>
@@ -525,34 +591,43 @@ function Resposta({
   const alternar = (v: string) =>
     setMarcados((m) => (v === 'nenhum' ? ['nenhum'] : m.includes(v) ? m.filter((x) => x !== v) : [...m.filter((x) => x !== 'nenhum'), v]))
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-slate-500">
+    <div className="space-y-2.5">
+      <p className="text-sm leading-snug text-suave">
         {inicial.length > 0 && 'Já marquei o que você escreveu. '}
-        {daIa.length > 0 ? 'A IA achou que pode haver os sinais com ✨ — marque só se for o caso.' : q.ajuda}
+        {daIa.length > 0 ? (
+          <>
+            A IA acha que pode haver o sinal com <Faisca className="inline size-3 align-[-1px] text-ia" rotulo="estrela" /> — marque só se for o caso.
+          </>
+        ) : (
+          q.ajuda
+        )}
       </p>
-      <div className="grid grid-cols-2 gap-2">
-        {q.opcoes.map((o) => (
-          <button
-            key={o.valor}
-            onClick={() => alternar(o.valor)}
-            className={`rounded-xl border px-3 py-2.5 text-left text-sm ${
-              marcados.includes(o.valor)
-                ? 'border-marca-600 bg-marca-50 font-semibold text-marca-900'
-                : daIa.includes(o.valor)
-                  ? 'border-dashed border-marca-500 bg-white'
-                  : 'border-slate-300'
-            }`}
-          >
-            <span aria-hidden="true">{o.emoji}</span> {o.rotulo}
-            {daIa.includes(o.valor) && !marcados.includes(o.valor) && <span title="Sugerido pela IA"> ✨</span>}
-          </button>
-        ))}
+      <div role="group" aria-label={q.texto} className="grid grid-cols-2 gap-2">
+        {q.opcoes.map((o) => {
+          const marcado = marcados.includes(o.valor)
+          const sugerido = daIa.includes(o.valor) && !marcado
+          return (
+            <button
+              key={o.valor}
+              type="button"
+              aria-pressed={marcado}
+              onClick={() => alternar(o.valor)}
+              className={`flex min-h-[54px] items-center gap-2 rounded-md px-3 py-2 text-left text-[14.5px] leading-tight ${
+                marcado
+                  ? 'border-[1.5px] border-tinta bg-tinta font-semibold text-white'
+                  : sugerido
+                    ? 'border-[1.5px] border-dashed border-ia bg-white font-medium'
+                    : 'border border-cinza bg-white font-medium'
+              }`}
+            >
+              {marcado && <Check className="size-4" />}
+              <span className="flex-1">{o.rotulo}</span>
+              {sugerido && <Faisca className="size-3.5 text-ia" rotulo="Sugerido pela IA" />}
+            </button>
+          )
+        })}
       </div>
-      <button
-        disabled={marcados.length === 0}
-        onClick={() => onResponder(marcados)}
-        className="w-full rounded-xl bg-marca-600 py-3 font-semibold text-white disabled:opacity-40"
-      >
+      <button type="button" disabled={marcados.length === 0} onClick={() => onResponder(marcados)} className={`w-full ${PRIMARIO}`}>
         Continuar
       </button>
     </div>
@@ -588,35 +663,36 @@ function EtapaLocal(props: {
 
   return (
     <div className="space-y-2">
-      <button onClick={usarGps} disabled={buscando} className="w-full rounded-xl border border-marca-600 py-3 font-semibold text-marca-700">
+      <button type="button" onClick={usarGps} disabled={buscando} className={`flex w-full items-center justify-center gap-2 ${SECUNDARIO}`}>
         {buscando ? (
           'Localizando…'
         ) : (
           <>
-            <span aria-hidden="true">📍</span> Usar minha localização
+            <Pino className="size-[18px]" /> Usar minha localização
           </>
         )}
       </button>
       <MapaPino pos={props.pos} onChange={props.setPos} />
-      <p className="text-xs text-slate-500">{aviso ?? 'Toque no mapa ou arraste o pino para ajustar.'}</p>
+      <p className="text-[13px] text-suave">{aviso ?? 'Toque no mapa ou arraste o pino para ajustar.'}</p>
       <input
         value={props.endereco}
         onChange={(e) => props.setEndereco(e.target.value)}
         aria-label="Endereço ou ponto de referência"
         maxLength={300}
         placeholder="Ex.: Rua XV de Novembro, 123 — perto da praça…"
-        className="w-full rounded-xl border border-slate-300 p-3 focus:outline-none focus-visible:border-marca-600 focus-visible:ring-2 focus-visible:ring-marca-600"
+        className={`h-12 w-full px-3.5 ${CAMPO}`}
       />
       <button
+        type="button"
         onClick={props.onContinuar}
         disabled={!props.pos && props.endereco.trim().length < 3}
         aria-describedby="dica-local"
-        className="w-full rounded-xl bg-marca-600 py-3 font-semibold text-white disabled:opacity-40"
+        className={`w-full ${PRIMARIO}`}
       >
         Continuar
       </button>
       {!props.pos && props.endereco.trim().length < 3 && (
-        <p id="dica-local" className="text-center text-xs text-slate-600">
+        <p id="dica-local" className="text-center text-[13px] text-suave">
           Marque o local no mapa ou escreva um endereço para continuar.
         </p>
       )}
@@ -650,28 +726,24 @@ function EtapaFoto({
 
   return (
     <div className="space-y-2">
-      {foto && <img src={foto.url} alt="Foto anexada" width={640} height={480} className="max-h-48 w-full rounded-xl object-cover" />}
-      <label className="block w-full cursor-pointer rounded-xl border border-marca-600 py-3 text-center font-semibold text-marca-700">
+      {foto && <img src={foto.url} alt="Foto anexada" width={640} height={480} className="max-h-48 w-full rounded-md object-cover" />}
+      <label className={`flex w-full cursor-pointer items-center justify-center gap-2 ${SECUNDARIO} has-focus-visible:outline-2 has-focus-visible:outline-ia`}>
         {processando ? (
           'Processando…'
         ) : foto ? (
           'Trocar foto'
         ) : (
           <>
-            <span aria-hidden="true">📷</span> Tirar ou escolher foto
+            <Camera className="size-[18px]" /> Tirar ou escolher foto
           </>
         )}
-        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => escolher(e.target.files?.[0])} />
+        <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => escolher(e.target.files?.[0])} />
       </label>
       <div className="flex gap-2">
-        <button onClick={() => onConfirmar(false)} className="flex-1 rounded-xl py-3 text-slate-600">
+        <button type="button" onClick={() => onConfirmar(false)} className="min-h-12 flex-1 rounded-md text-suave underline underline-offset-[3px]">
           Pular
         </button>
-        <button
-          onClick={() => onConfirmar(true)}
-          disabled={!foto}
-          className="flex-1 rounded-xl bg-marca-600 py-3 font-semibold text-white disabled:opacity-40"
-        >
+        <button type="button" onClick={() => onConfirmar(true)} disabled={!foto} className={`flex-1 ${PRIMARIO}`}>
           Enviar foto
         </button>
       </div>
@@ -684,59 +756,107 @@ function EtapaContato({ enviando, erro, onEnviar }: { enviando: boolean; erro: s
   const [tel, setTel] = useState('')
   return (
     <div className="space-y-2">
-      {erro && <p role="alert" className="rounded-lg bg-red-50 p-2 text-sm text-red-700">{erro}</p>}
+      {erro && (
+        <p role="alert" className="rounded-md border border-alerta bg-white p-2.5 text-sm text-alerta">
+          {erro}
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2">
-        <input value={nome} onChange={(e) => setNome(e.target.value)} aria-label="Seu nome" autoComplete="name" placeholder="Ex.: Maria Silva" maxLength={120} className="rounded-xl border border-slate-300 p-3" />
-        <input value={tel} onChange={(e) => setTel(e.target.value)} aria-label="Telefone para contato" type="tel" autoComplete="tel" placeholder="Ex.: (46) 99999-0000" inputMode="tel" maxLength={40} className="rounded-xl border border-slate-300 p-3" />
+        <input value={nome} onChange={(e) => setNome(e.target.value)} aria-label="Seu nome" autoComplete="name" placeholder="Ex.: Maria Silva" maxLength={120} className={`h-12 min-w-0 px-3 ${CAMPO}`} />
+        <input
+          value={tel}
+          onChange={(e) => setTel(e.target.value)}
+          aria-label="Telefone para contato"
+          type="tel"
+          autoComplete="tel"
+          placeholder="Ex.: (46) 99999-0000"
+          inputMode="tel"
+          maxLength={40}
+          className={`h-12 min-w-0 px-3 ${CAMPO}`}
+        />
       </div>
       <button
+        type="button"
         disabled={enviando || !nome.trim() || !tel.trim()}
         aria-describedby="dica-contato"
         onClick={() => onEnviar(false, nome.trim(), tel.trim())}
-        className="w-full rounded-xl bg-marca-600 py-3 font-semibold text-white disabled:opacity-40"
+        className={`w-full ${PRIMARIO}`}
       >
         Enviar com meu contato
       </button>
       {/* Um botão apagado sem explicação deixa o cidadão travado: diz o que falta. */}
       {(!nome.trim() || !tel.trim()) && (
-        <p id="dica-contato" className="text-center text-xs text-slate-600">
+        <p id="dica-contato" className="text-center text-[13px] text-suave">
           Preencha nome e telefone, ou envie anonimamente.
         </p>
       )}
-      <button disabled={enviando} onClick={() => onEnviar(true)} className="w-full rounded-xl border border-slate-300 py-3 font-medium disabled:opacity-40">
+      <button type="button" disabled={enviando} onClick={() => onEnviar(true)} className={`w-full ${SECUNDARIO}`}>
         {enviando ? 'Enviando…' : 'Enviar anonimamente'}
       </button>
-      <p className="text-center text-[11px] text-slate-500">Seus dados são usados só para o atendimento e nunca são mostrados à pessoa denunciada.</p>
+      <p className="text-center text-xs text-suave">Seus dados são usados só para o atendimento e nunca são mostrados à pessoa denunciada.</p>
     </div>
   )
 }
 
-function Bolha({ de, alerta, children }: { de: 'bot' | 'eu'; alerta?: boolean; children: ReactNode }) {
+function Bolha({ de, alerta, ia, children, ref }: { de: 'bot' | 'eu'; alerta?: boolean; ia?: boolean; children: ReactNode; ref?: Ref<HTMLDivElement> }) {
   return (
-    <div className={`animar-entrada flex ${de === 'eu' ? 'justify-end' : 'justify-start'}`}>
+    // scroll-mt: a bolha ainda está 8 px abaixo (animação de entrada) quando a rolagem a leva ao topo.
+    <div ref={ref} className={`animar-entrada flex scroll-mt-4 ${de === 'eu' ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[15px] leading-snug shadow-sm ${
+        className={`max-w-[86%] px-3.5 py-2.5 text-base leading-snug ${
           alerta
-            ? 'rounded-bl-sm bg-p1 font-semibold text-white'
+            ? 'rounded-[4px_16px_16px_16px] bg-p1 font-bold text-tinta'
             : de === 'eu'
-              ? 'rounded-br-sm bg-marca-600 text-white'
-              : 'rounded-bl-sm bg-white text-slate-800'
+              ? 'rounded-[16px_4px_16px_16px] bg-tinta text-white'
+              : ia
+                ? 'mt-1 flex flex-col gap-1.5 rounded-[4px_16px_16px_16px] border-[1.5px] border-ia bg-white text-[17px] font-medium'
+                : 'rounded-[4px_16px_16px_16px] border border-regra bg-white'
         }`}
       >
+        {ia && (
+          <span className="flex items-center gap-1.5 font-mono text-[10.5px] font-medium tracking-[0.12em] text-ia uppercase">
+            <Faisca className="size-3" /> A IA ficou em dúvida
+          </span>
+        )}
         <span className="sr-only">{de === 'eu' ? 'Você: ' : 'Central Animal: '}</span>
-        {children}
+        {ia ? <span>{children}</span> : children}
       </div>
     </div>
   )
 }
 
+/** Orientações dentro da bolha: lista de verdade, para o leitor de tela anunciar "lista, 3 itens". */
+function Orientacoes({ titulo, itens }: { titulo: string; itens: string[] }) {
+  return (
+    <>
+      <span className="font-semibold">{titulo}</span>
+      <ol className="mt-1.5">
+        {itens.map((t, i) => (
+          <li key={t} className="grid grid-cols-[26px_minmax(0,1fr)] gap-1 border-t border-regra py-1.5 first:border-t-0">
+            <span aria-hidden="true" className="pt-0.5 font-mono text-xs font-semibold">
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            {t}
+          </li>
+        ))}
+      </ol>
+      {/* suave sobre o branco da bolha: 5,5:1. */}
+      {!ORIENTACOES_VALIDADAS && <span className="mt-1.5 block text-xs text-suave">Orientações em validação com médico-veterinário.</span>}
+    </>
+  )
+}
+
 const Opcoes = ({ children }: { children: ReactNode }) => <div className="flex flex-col gap-2">{children}</div>
 
+/** Opção de resposta única. `destaque` é o "Sim, há pessoa em risco": borda e texto em alerta, não só cor de fundo. */
 function BotaoOpcao({ onClick, destaque, children }: { onClick: () => void; destaque?: boolean; children: ReactNode }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`rounded-xl border px-4 py-3 text-left font-medium active:scale-[0.98] ${destaque ? 'border-red-200 bg-red-50 text-red-800' : 'border-slate-300 bg-white'}`}
+      className={`min-h-12 rounded-md bg-white px-4 py-2.5 text-left font-medium active:scale-[0.98] ${
+        destaque ? 'border-[1.5px] border-alerta font-semibold text-alerta' : 'border border-cinza'
+      }`}
     >
       {children}
     </button>
@@ -744,5 +864,5 @@ function BotaoOpcao({ onClick, destaque, children }: { onClick: () => void; dest
 }
 
 const Ponto = ({ atraso = '0ms' }: { atraso?: string }) => (
-  <span className="inline-block size-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: atraso }} />
+  <span className="inline-block size-2 animate-bounce rounded-full bg-suave" style={{ animationDelay: atraso }} />
 )

@@ -22,13 +22,14 @@ export default function Login({ onEntrar }: { onEntrar: () => void }) {
     }
   }
 
+  const campo = 'h-12 w-full rounded border border-noite-borda bg-noite-0 px-3.5 text-[15px] text-claro placeholder:text-nevoa'
   return (
-    <main className="grid min-h-full place-items-center bg-gradient-to-br from-slate-800 to-slate-950 p-6">
-      <form onSubmit={entrar} className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-8 shadow-2xl">
+    <main className="noite grid min-h-full place-items-center bg-noite-0 p-6 text-claro [color-scheme:dark]">
+      <form onSubmit={entrar} className="w-full max-w-sm space-y-4 rounded-md border border-noite-3 bg-noite-1 p-8">
         <div>
-          <Pata className="size-10 text-marca-600" />
-          <h1 className="mt-2 text-2xl font-bold">Central Animal</h1>
-          <p className="text-sm text-slate-500">Painel do servidor · Prefeitura de Pato Branco</p>
+          <Pata className="size-9 text-claro" />
+          <h1 className="mt-3 font-display text-3xl leading-none font-extrabold uppercase">Central Animal</h1>
+          <p className="mt-1.5 font-mono text-[11px] tracking-[0.12em] text-nevoa uppercase">Painel do servidor · Pato Branco</p>
         </div>
         <label htmlFor="login-email" className="sr-only">
           E-mail
@@ -41,7 +42,7 @@ export default function Login({ onEntrar }: { onEntrar: () => void }) {
           spellCheck={false}
           placeholder="E-mail"
           autoComplete="username"
-          className="w-full rounded-lg border border-slate-300 p-3"
+          className={campo}
         />
         <label htmlFor="login-senha" className="sr-only">
           Senha
@@ -53,17 +54,17 @@ export default function Login({ onEntrar }: { onEntrar: () => void }) {
           type="password"
           placeholder="Senha"
           autoComplete="current-password"
-          className="w-full rounded-lg border border-slate-300 p-3"
+          className={campo}
         />
         {erro && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-p1">
             {erro}
           </p>
         )}
-        <button disabled={enviando} className="w-full rounded-lg bg-marca-600 py-3 font-semibold text-white disabled:opacity-50">
+        <button disabled={enviando} className="h-12 w-full rounded bg-claro font-bold text-tinta disabled:opacity-50">
           {enviando ? 'Entrando…' : 'Entrar'}
         </button>
-        {ACESSO_LOCAL && <p className="text-center text-xs text-slate-500">Protótipo · ana@central.pb / central123</p>}
+        {ACESSO_LOCAL && <p className="text-center font-mono text-[11px] text-nevoa">Protótipo · ana@central.pb / central123</p>}
       </form>
     </main>
   )

@@ -114,11 +114,13 @@ export function classificar(r: Respostas): Resultado {
   }
 }
 
-export const PRIORIDADES: Record<Prioridade, { rotulo: string; prazo: string; cor: string }> = {
-  1: { rotulo: 'Crítica', prazo: 'Atendimento imediato', cor: '#dc2626' },
-  2: { rotulo: 'Alta', prazo: 'Atendimento no mesmo dia', cor: '#ea580c' },
-  3: { rotulo: 'Média', prazo: 'Atendimento em até 72 h', cor: '#ca8a04' },
-  4: { rotulo: 'Baixa', prazo: 'Atendimento programado', cor: '#16a34a' },
+// Cores do sistema "Plantão" (as mesmas do deck do pitch, ajustadas para contraste): texto sobre elas é sempre
+// tinta #0d1b26. `curto` é o prazo que cabe numa etiqueta ("imediato", "até 72 h").
+export const PRIORIDADES: Record<Prioridade, { rotulo: string; prazo: string; curto: string; cor: string }> = {
+  1: { rotulo: 'Crítica', prazo: 'Atendimento imediato', curto: 'imediato', cor: '#ff5a60' },
+  2: { rotulo: 'Alta', prazo: 'Atendimento no mesmo dia', curto: 'mesmo dia', cor: '#f76b15' },
+  3: { rotulo: 'Média', prazo: 'Atendimento em até 72 h', curto: 'até 72 h', cor: '#ffc53d' },
+  4: { rotulo: 'Baixa', prazo: 'Atendimento programado', curto: 'programado', cor: '#2fa36b' },
 }
 
 export const CATEGORIAS: Record<Categoria, string> = {
